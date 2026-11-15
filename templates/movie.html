@@ -37,10 +37,20 @@
               {% if in_watchlist %}Remove from Watchlist{% else %}Add to Watchlist{% endif %}
             </button>
           </form>
+          {% if current_user %}
+          <form action="{{ url_for('main.toggle_favourite', movie_id=movie.id) }}" method="post" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="secondary-btn">{% if in_favourite %}Remove Favourite{% else %}Add to Favourites{% endif %}</button>
+          </form>
+          {% endif %}
         </div>
       </div>
     </div>
   </section>
+
+  {% if ads_on and site_ads.ads_movie_detail %}
+  <section class="container ad-slot" aria-label="Advertisement"><span class="ad-label">Advertisement</span><div class="ad-inner">{{ site_ads.ads_movie_detail|safe }}</div></section>
+  {% endif %}
 
   <section class="container detail-grid">
     <div class="detail-panel">
@@ -65,6 +75,29 @@
         <p>No verified trailer is available.</p>
       {% endif %}
     </div>
+  </section>
+
+  <section class="container detail-panel" style="margin-top:1.5rem">
+    <h2>Ratings & Reviews</h2>
+    {% if current_user %}
+    <form method="post" action="{{ url_for('main.submit_review', movie_id=movie.id) }}" class="auth-form" style="margin-bottom:1rem">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <label>Rating (1–10) <input type="number" name="rating" min="1" max="10" value="{{ user_review.rating if user_review and user_review.rating else '' }}" /></label>
+      <label>Your review <textarea name="body" rows="3" placeholder="Share your thoughts">{{ user_review.body if user_review and user_review.body else '' }}</textarea></label>
+      <button type="submit" class="secondary-btn">Save review</button>
+    </form>
+    {% else %}
+    <p><a href="{{ url_for('main.login', next=request.path) }}">Log in</a> to rate or review this title.</p>
+    {% endif %}
+    {% for r in reviews %}
+      <div style="padding:.75rem 0;border-top:1px solid rgba(255,255,255,.08)">
+        <strong>{{ r.user.username if r.user else 'User' }}</strong>{% if r.rating %} · ★ {{ r.rating }}/10{% endif %}
+        <div class="muted" style="font-size:.9rem">{{ r.created_at }}</div>
+        {% if r.body %}<p>{{ r.body }}</p>{% endif %}
+      </div>
+    {% else %}
+      <p class="muted">No reviews yet.</p>
+    {% endfor %}
   </section>
 
   <section class="container related-section">

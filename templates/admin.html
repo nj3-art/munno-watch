@@ -6,7 +6,14 @@
   <section class="container admin-shell">
     <div class="section-header admin-header">
       <h1>Administration</h1>
-      <a class="primary-btn" href="{{ url_for('main.new_admin_movie') }}">Add movie</a>
+      <div class="cta-row">
+        <a class="primary-btn" href="{{ url_for('main.new_admin_movie') }}">Add movie</a>
+        <a class="secondary-btn" href="{{ url_for('main.admin_import_metadata') }}">Import metadata</a>
+        <a class="secondary-btn" href="{{ url_for('main.admin_users') }}">Users</a>
+        <a class="secondary-btn" href="{{ url_for('main.admin_settings') }}">Settings</a>
+        <a class="secondary-btn" href="{{ url_for('main.admin_advertising') }}">Advertising</a>
+        <a class="secondary-btn" href="{{ url_for('main.admin_analytics') }}">Analytics</a>
+      </div>
     </div>
 
     <div class="admin-panel">

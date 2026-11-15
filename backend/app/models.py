@@ -129,6 +129,8 @@ class User(db.Model):
     email = db.Column(String(254), nullable=False, unique=True)
     password_hash = db.Column(String(255), nullable=False)
     is_admin = db.Column(Boolean, nullable=False, default=False)
+    is_active = db.Column(Boolean, nullable=False, default=True)
+    email_verified = db.Column(Boolean, nullable=False, default=False)
     created_at = db.Column(String(32))
 
 
@@ -143,6 +145,74 @@ class Watchlist(db.Model):
 
     user = db.relationship("User", backref=db.backref("watchlists", cascade="all, delete-orphan"))
     movie = db.relationship("Movie", backref=db.backref("watchlist_entries", cascade="all, delete-orphan"))
+
+
+class Favourite(db.Model):
+    __tablename__ = "favourites"
+    __table_args__ = (UniqueConstraint("user_id", "movie_id", name="uq_favourite_user_movie"),)
+
+    id = db.Column(Integer, primary_key=True)
+    user_id = db.Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    movie_id = db.Column(Integer, ForeignKey("movies.id", ondelete="CASCADE"), nullable=False)
+    created_at = db.Column(String(32))
+
+    user = db.relationship("User", backref=db.backref("favourites", cascade="all, delete-orphan"))
+    movie = db.relationship("Movie", backref=db.backref("favourite_entries", cascade="all, delete-orphan"))
+
+
+class WatchHistory(db.Model):
+    __tablename__ = "watch_history"
+
+    id = db.Column(Integer, primary_key=True)
+    user_id = db.Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    movie_id = db.Column(Integer, ForeignKey("movies.id", ondelete="CASCADE"), nullable=False)
+    progress_seconds = db.Column(Integer, nullable=False, default=0)
+    duration_seconds = db.Column(Integer)
+    completed = db.Column(Boolean, nullable=False, default=False)
+    last_watched_at = db.Column(String(32), nullable=False)
+    __table_args__ = (UniqueConstraint("user_id", "movie_id", name="uq_watch_history_user_movie"),)
+
+    user = db.relationship("User", backref=db.backref("watch_history", cascade="all, delete-orphan"))
+    movie = db.relationship("Movie", backref=db.backref("history_entries", cascade="all, delete-orphan"))
+
+
+class PasswordResetToken(db.Model):
+    __tablename__ = "password_reset_tokens"
+
+    id = db.Column(Integer, primary_key=True)
+    user_id = db.Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token = db.Column(String(128), nullable=False, unique=True)
+    expires_at = db.Column(String(32), nullable=False)
+    used_at = db.Column(String(32))
+
+    user = db.relationship("User", backref=db.backref("password_reset_tokens", cascade="all, delete-orphan"))
+
+
+class EmailVerificationToken(db.Model):
+    __tablename__ = "email_verification_tokens"
+
+    id = db.Column(Integer, primary_key=True)
+    user_id = db.Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token = db.Column(String(128), nullable=False, unique=True)
+    expires_at = db.Column(String(32), nullable=False)
+    used_at = db.Column(String(32))
+
+    user = db.relationship("User", backref=db.backref("email_verification_tokens", cascade="all, delete-orphan"))
+
+
+class Review(db.Model):
+    __tablename__ = "reviews"
+    __table_args__ = (UniqueConstraint("user_id", "movie_id", name="uq_review_user_movie"),)
+
+    id = db.Column(Integer, primary_key=True)
+    user_id = db.Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    movie_id = db.Column(Integer, ForeignKey("movies.id", ondelete="CASCADE"), nullable=False)
+    rating = db.Column(Integer)
+    body = db.Column(Text)
+    created_at = db.Column(String(32), nullable=False)
+
+    user = db.relationship("User", backref=db.backref("reviews", cascade="all, delete-orphan"))
+    movie = db.relationship("Movie", backref=db.backref("reviews", cascade="all, delete-orphan"))
 
 
 class Setting(db.Model):

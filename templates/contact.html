@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Contact | CINEZONE{% endblock %}
+{% block content %}
+<section class="page-header container">
+  <div>
+    <span class="eyebrow">Contact</span>
+    <h1>Contact CineZone</h1>
+  </div>
+</section>
+<section class="container content-card">
+  <p>For general enquiries, rights questions, advertising enquiries, or content removal requests, please use the contact details configured by the site administrator.</p>
+  <div class="info-grid">
+    <div><h3>Email</h3><p>{{ contact_email or 'Set contact email in site settings / environment.' }}</p></div>
+    <div><h3>Content removal</h3><p>Rights holders may submit takedown or rights concerns with proof of ownership/authority, relevant URLs, and requested action. See the <a href="{{ url_for('main.copyright_policy') }}">Copyright Policy</a>.</p></div>
+    <div><h3>Advertising</h3><p>Legitimate advertising and partnership enquiries can be directed to the administrator contact above, subject to policy and approval requirements.</p></div>
+  </div>
+  <p class="muted">This page does not collect or store payment credentials. For account or privacy matters, refer to the <a href="{{ url_for('main.privacy_policy') }}">Privacy Policy</a>.</p>
+</section>
+{% endblock %}

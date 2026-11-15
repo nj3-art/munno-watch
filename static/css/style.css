@@ -859,3 +859,22 @@ button {
   .poster-wrap img { height: 300px; }
   .site-footer { padding-bottom: 80px; }
 }
+
+/* --- Launch/readiness additions --- */
+.content-card{background:rgba(23,29,53,.75);border:1px solid rgba(139,92,246,.15);border-radius:16px;padding:2rem;margin:1.5rem auto;line-height:1.7}
+.content-card h2{margin-top:1.5rem;color:#fff}.content-card h3{margin-top:1rem;color:#fff}
+.content-card ul{margin:.75rem 0 0 1.25rem}.content-card a{color:#a855f7}
+.prose p{margin:.75rem 0;color:#d4d4d8}.muted{color:#a1a1aa}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin:1rem 0}
+.footer-bottom{border-top:1px solid rgba(255,255,255,.08);margin-top:1.5rem;padding:1rem 0;color:#a1a1aa}
+.pagination{display:flex;gap:1rem;align-items:center;justify-content:center;margin:2rem auto}
+.page-header p{color:#a1a1aa;margin-top:.5rem}
+
+/* Ad placements (compliant, non-intrusive) */
+.ad-slot{margin:1.25rem auto;padding:0.75rem;border:1px dashed rgba(139,92,246,.35);border-radius:12px;background:rgba(16,21,42,.5);text-align:center}
+.ad-label{display:block;font-size:.75rem;color:#a1a1aa;margin-bottom:.35rem;letter-spacing:.04em;text-transform:uppercase}
+.ad-inner{min-height:0;overflow:hidden}
+.consent-banner{position:fixed;left:0;right:0;bottom:0;background:rgba(16,21,42,.98);border-top:1px solid rgba(139,92,246,.3);padding:1rem 0;z-index:1000}
+.consent-inner{display:flex;gap:1rem;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.consent-inner p{margin:0;color:#d4d4d8;max-width:800px}
+@media(max-width:700px){.consent-inner{flex-direction:column;align-items:flex-start}}

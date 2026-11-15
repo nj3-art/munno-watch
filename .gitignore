@@ -17,3 +17,5 @@ venv/
 *.sqlite3
 cinezone.db
 /instance/media/
+
+.vscode/

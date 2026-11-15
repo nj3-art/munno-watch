@@ -44,6 +44,10 @@
     {% endfor %}
   </section>
 
+  {% if ads_on and site_ads.ads_home_banner %}
+  <section class="container ad-slot" aria-label="Advertisement"><span class="ad-label">Advertisement</span><div class="ad-inner">{{ site_ads.ads_home_banner|safe }}</div></section>
+  {% endif %}
+
   {% for section in sections %}
     <section class="movie-section container">
       <div class="section-header">

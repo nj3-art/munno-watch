@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Admin Users | CINEZONE{% endblock %}
+{% block content %}
+<section class="page-header container"><div><span class="eyebrow">Administration</span><h1>User management</h1></div></section>
+<section class="container content-card">
+  <p><a href="{{ url_for('main.admin') }}" class="secondary-btn">Back to dashboard</a></p>
+  <table style="width:100%;border-collapse:collapse;margin-top:1rem">
+    <tr><th align="left">ID</th><th align="left">Username</th><th align="left">Email</th><th align="left">Admin</th><th align="left">Active</th><th align="left">Created</th><th align="left">Actions</th></tr>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.id }}</td><td>{{ u.username }}</td><td>{{ u.email }}</td><td>{{ 'Yes' if u.is_admin else 'No' }}</td><td>{{ 'Yes' if u.is_active else 'No' }}</td><td>{{ u.created_at or '' }}</td>
+      <td>
+        <form method="post" action="{{ url_for('main.admin_toggle_user_active', user_id=u.id) }}" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button class="secondary-btn" type="submit">{{ 'Suspend' if u.is_active else 'Restore' }}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
+{% endblock %}

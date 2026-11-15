@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Search | CINEZONE{% endblock %}
+{% block content %}
+<section class="page-header container">
+  <div>
+    <span class="eyebrow">Search</span>
+    <h1>Search movies</h1>
+    <p>Find titles by name, genre, director, language, keywords, or year.</p>
+  </div>
+</section>
+{% if ads_on and site_ads.ads_incontent %}
+<section class="container ad-slot" aria-label="Advertisement"><span class="ad-label">Advertisement</span><div class="ad-inner">{{ site_ads.ads_incontent|safe }}</div></section>
+{% endif %}
+<section class="filters container">
+  <form class="filter-form" method="get" action="{{ url_for('main.search') }}">
+    <input type="search" name="q" value="{{ current_query or '' }}" placeholder="Search by title, genre, director or keyword" autofocus />
+    <select name="genre"><option value="">All genres</option>{% for genre in genres %}<option value="{{ genre }}" {% if request.args.get('genre')==genre %}selected{% endif %}>{{ genre }}</option>{% endfor %}</select>
+    <select name="sort">
+      <option value="newest" {% if current_sort == 'newest' %}selected{% endif %}>Newest</option>
+      <option value="popular" {% if current_sort == 'popular' %}selected{% endif %}>Most popular</option>
+      <option value="rated" {% if current_sort == 'rated' %}selected{% endif %}>Highest rated</option>
+      <option value="alpha" {% if current_sort == 'alpha' %}selected{% endif %}>A–Z</option>
+    </select>
+    <button type="submit" class="primary-btn">Search</button>
+  </form>
+</section>
+{% if current_query or request.args.get('genre') %}
+  {% include 'partials/movie_grid_results.html' ignore missing %}
+  {% if not movies and (current_query or request.args.get('genre')) %}
+  <section class="container"><div class="empty-state"><h2>No results found</h2><p>Try different keywords, spelling, or filters.</p></div></section>
+  {% elif movies %}
+  <section class="container movie-grid">
+    {% for movie in movies %}
+      <article class="movie-card results-card">
+        <div class="poster-wrap">
+          {% if movie.assets and movie.assets.poster_key %}<img src="{{ url_for('main.poster', movie_id=movie.id) }}" alt="{{ movie.title }} poster" />{% else %}<div class="poster-placeholder">Poster pending</div>{% endif %}
+          <div class="card-overlay"><a href="{{ url_for('main.movie_detail', movie_id=movie.id) }}" class="card-link">View Details</a></div>
+        </div>
+        <div class="card-info"><div class="top-line"><span>{{ movie.genre or '—' }}</span><span>★ {{ movie.rating or '—' }}</span></div><h3>{{ movie.title }}</h3><div class="bottom-line"><span>{{ movie.release_year or '' }}</span><span>{{ movie.availability or '' }}</span></div></div>
+      </article>
+    {% endfor %}
+  </section>
+  {% endif %}
+{% else %}
+  <section class="container"><div class="empty-state"><h2>Start searching</h2><p>Enter a title, genre, director, or keyword above.</p></div></section>
+{% endif %}
+{% if pagination and pagination.pages > 1 %}
+<nav class="container pagination" aria-label="Search pages">
+  {% if pagination.has_prev %}<a class="secondary-btn" rel="prev" href="{{ url_for('main.search', page=pagination.prev_num, **pagination_args) }}">Previous</a>{% endif %}
+  <span aria-current="page">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+  {% if pagination.has_next %}<a class="secondary-btn" rel="next" href="{{ url_for('main.search', page=pagination.next_num, **pagination_args) }}">Next</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Continue Watching | CINEZONE{% endblock %}
+{% block content %}
+<section class="page-header container"><div><span class="eyebrow">Your library</span><h1>Continue Watching</h1></div></section>
+<section class="container content-card">
+  {% if not current_user %}
+    <p>Please <a href="{{ url_for('main.login', next=request.path) }}">log in</a> to see your continue-watching list.</p>
+  {% elif items %}
+    <div class="movie-grid">
+      {% for movie in items %}
+      <article class="movie-card results-card">
+        <div class="poster-wrap">
+          {% if movie.assets and movie.assets.poster_key %}<img src="{{ url_for('main.poster', movie_id=movie.id) }}" alt="{{ movie.title }} poster" />{% else %}<div class="poster-placeholder">Poster pending</div>{% endif %}
+          <div class="card-overlay"><a href="{{ url_for('main.movie_detail', movie_id=movie.id) }}" class="card-link">Resume / View</a></div>
+        </div>
+        <div class="card-info"><h3>{{ movie.title }}</h3><div class="bottom-line"><span>{{ movie.release_year or '' }}</span></div></div>
+      </article>
+      {% endfor %}
+    </div>
+    <p class="muted">Playback progress resume is enabled for supported titles as progress tracking is recorded. If no progress is shown yet, start watching an authorised title to populate this list.</p>
+  {% else %}
+    <div class="empty-state"><h2>Nothing to continue yet</h2><p>Titles you start watching will appear here when progress tracking is available. In the meantime, explore your <a href="{{ url_for('main.profile') }}">watchlist</a> or <a href="{{ url_for('main.movies') }}">browse movies</a>.</p></div>
+  {% endif %}
+</section>
+{% endblock %}

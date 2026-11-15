@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Genres | CINEZONE{% endblock %}
+{% block content %}
+<section class="page-header container">
+  <div>
+    <span class="eyebrow">Browse</span>
+    <h1>Genres</h1>
+    <p>Explore movies by genre from the live catalog.</p>
+  </div>
+</section>
+{% if ads_on and site_ads.ads_incontent %}
+<section class="container ad-slot" aria-label="Advertisement"><span class="ad-label">Advertisement</span><div class="ad-inner">{{ site_ads.ads_incontent|safe }}</div></section>
+{% endif %}
+<section class="container">
+  {% if genres %}
+  <div class="collections-grid">
+    {% for genre in genres %}
+      <a href="{{ url_for('main.genre_page', genre_name=genre) }}" class="collection-card"><span>{{ genre }}</span></a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state"><h2>No genres available yet.</h2><p>Published, rights-cleared titles will appear here by genre.</p></div>
+  {% endif %}
+</section>
+{% endblock %}

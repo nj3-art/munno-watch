@@ -9,7 +9,10 @@
         <span class="eyebrow">Your account</span>
         <h1>{{ user.username }}</h1>
       </div>
-      <a href="{{ url_for('main.movies') }}" class="secondary-btn">Continue browsing</a>
+      <div class="cta-row">
+        <a href="{{ url_for('main.edit_profile') }}" class="secondary-btn">Edit profile</a>
+        <a href="{{ url_for('main.movies') }}" class="secondary-btn">Continue browsing</a>
+      </div>
     </div>
 
     <div class="profile-grid">
@@ -18,8 +21,10 @@
         <ul class="facts-list">
           <li><strong>Username:</strong> {{ user.username }}</li>
           <li><strong>Email:</strong> {{ user.email }}</li>
+          <li><strong>Email verified:</strong> {{ 'Yes' if user.email_verified else 'No' }}</li>
           <li><strong>Member since:</strong> {{ user.created_at }}</li>
         </ul>
+        <p style="margin-top:1rem"><a href="{{ url_for('main.watchlist_page') }}">Watchlist</a> · <a href="{{ url_for('main.favourites_page') }}">Favourites</a> · <a href="{{ url_for('main.watch_history_page') }}">Watch history</a> · <a href="{{ url_for('main.continue_watching') }}">Continue watching</a></p>
       </div>
 
       <div class="profile-card">

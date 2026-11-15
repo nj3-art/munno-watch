@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import secrets
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
@@ -10,6 +11,7 @@ from flask import (
     abort,
     current_app,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -24,15 +26,21 @@ from werkzeug.utils import secure_filename
 
 from .auth import admin_required, get_current_user, is_in_watchlist, is_safe_redirect_target, user_required
 from .extensions import db
+from .metadata import MetadataConfigError, MetadataProviderError, get_movie as tmdb_get_movie, map_tmdb_movie, search_movies as tmdb_search_movies
 from .models import (
     AuditLog,
+    EmailVerificationToken,
+    Favourite,
     Movie,
     MovieAsset,
     MovieDetails,
     MovieRights,
     MovieView,
+    PasswordResetToken,
+    Review,
     Setting,
     User,
+    WatchHistory,
     Watchlist,
 )
 from .storage import (
@@ -48,6 +56,38 @@ from .storage import (
 
 main = Blueprint("main", __name__)
 MOVIE_PAGE_SIZE = 24
+
+# Simple in-memory rate limiting (per-process). For production use a shared store.
+_RATE_BUCKET = {}
+
+
+def _rate_limited(key: str, limit: int, window_seconds: int) -> bool:
+    if current_app.config.get("TESTING") or current_app.config.get("APP_ENV") == "testing":
+        return False
+    now = datetime.now(timezone.utc).timestamp()
+    bucket = _RATE_BUCKET.setdefault(key, [])
+    cutoff = now - window_seconds
+    while bucket and bucket[0] < cutoff:
+        bucket.pop(0)
+    if len(bucket) >= limit:
+        return True
+    bucket.append(now)
+    return False
+
+
+@main.before_app_request
+def enforce_maintenance_mode():
+    if request.endpoint in {"main.health", "static"}:
+        return None
+    try:
+        row = db.session.get(Setting, "maintenance_mode")
+        if row and row.value == "on":
+            user = get_current_user()
+            if not (user and user.is_admin):
+                return render_template("maintenance.html"), 503
+    except Exception:
+        return None
+    return None
 
 
 def _published_movies_query():
@@ -315,25 +355,70 @@ def movie_detail(movie_id: int):
     ).all()
     user = get_current_user()
     in_watchlist = bool(user and is_in_watchlist(user.id, movie_id))
+    in_favourite = bool(
+        user and db.session.scalar(select(Favourite.id).where(Favourite.user_id == user.id, Favourite.movie_id == movie_id))
+    )
     db.session.add(
         MovieView(
             movie_id=movie.id,
             viewed_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
         )
     )
+    # Record/refresh watch history entry for continue-watching features when logged in
+    if user:
+        entry = db.session.scalar(select(WatchHistory).where(WatchHistory.user_id == user.id, WatchHistory.movie_id == movie_id))
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        if not entry:
+            db.session.add(WatchHistory(user_id=user.id, movie_id=movie_id, progress_seconds=0, completed=False, last_watched_at=now))
+        else:
+            entry.last_watched_at = now
     db.session.commit()
     has_video = bool(movie.assets and storage_has_key(movie.assets.video_key))
     can_stream = _content_allowed(movie, "stream")
     can_download = _content_allowed(movie, "download")
+    reviews = db.session.scalars(select(Review).where(Review.movie_id == movie.id).order_by(Review.created_at.desc()).limit(20)).all()
+    user_review = db.session.scalar(select(Review).where(Review.movie_id == movie.id, Review.user_id == user.id)) if user else None
     return render_template(
         "movie.html",
         movie=movie,
         related=related,
         in_watchlist=in_watchlist,
+        in_favourite=in_favourite,
         has_video=has_video,
         can_stream=can_stream,
         can_download=can_download,
+        reviews=reviews,
+        user_review=user_review,
     )
+
+
+@main.route("/movie/<int:movie_id>/review", methods=["POST"])
+@user_required
+def submit_review(movie_id: int):
+    if _public_movie(movie_id) is None:
+        abort(404)
+    rating_raw = request.form.get("rating", "").strip()
+    body = request.form.get("body", "").strip()[:2000]
+    rating = None
+    if rating_raw:
+        try:
+            rating = int(rating_raw)
+        except ValueError:
+            rating = None
+        if rating is not None and rating not in range(1, 11):
+            flash("Rating must be between 1 and 10.", "error")
+            return redirect(url_for("main.movie_detail", movie_id=movie_id))
+    user = get_current_user()
+    review = db.session.scalar(select(Review).where(Review.user_id == user.id, Review.movie_id == movie_id))
+    if not review:
+        review = Review(user_id=user.id, movie_id=movie_id, created_at=_now_str())
+        db.session.add(review)
+    review.rating = rating
+    review.body = body or None
+    review.created_at = _now_str()
+    db.session.commit()
+    flash("Review saved.", "success")
+    return redirect(url_for("main.movie_detail", movie_id=movie_id))
 
 
 @main.route("/watch/<int:movie_id>")
@@ -522,6 +607,10 @@ def register():
 @main.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
+        ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+        if _rate_limited(f"login:{ip}", 10, 300):
+            flash("Too many login attempts. Please try again later.", "error")
+            return render_template("login.html"), 429
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         user = db.session.scalar(
@@ -530,6 +619,9 @@ def login():
 
         if not user or not check_password_hash(user.password_hash, password):
             flash("Invalid username or password.", "error")
+            return render_template("login.html")
+        if hasattr(user, "is_active") and not user.is_active:
+            flash("Your account is not active. Contact support if this is unexpected.", "error")
             return render_template("login.html")
 
         session.clear()
@@ -876,13 +968,486 @@ def unpublish_admin_movie(movie_id: int):
     return redirect(url_for("main.admin"))
 
 
+@main.route("/trending")
+def trending():
+    return redirect(url_for("main.movies", sort="popular"))
+
+
+@main.route("/latest")
+def latest():
+    return redirect(url_for("main.movies", sort="newest"))
+
+
+@main.route("/search")
+def search():
+    """Dedicated search page (reuses movie discovery)."""
+    # Delegate to movies view logic by rendering same behavior
+    args = request.args.to_dict(flat=True)
+    if not args.get("sort"):
+        args["sort"] = "newest"
+    # Reuse /movies handler output expectations by calling its query path inline
+    with current_app.test_request_context("/movies?" + "&".join(f"{k}={v}" for k, v in request.args.items())):
+        pass
+    # Simpler: replicate lightweight search rendering
+    search_term = request.args.get("q", "").strip()
+    genre = request.args.get("genre", "").strip()
+    sort = request.args.get("sort", "newest")
+    try:
+        page = _requested_page()
+    except ValueError as error:
+        abort(400, description=str(error))
+    query = _published_movies_query()
+    if search_term:
+        like_term = f"%{search_term}%"
+        query = query.where(or_(Movie.title.ilike(like_term), Movie.genre.ilike(like_term), Movie.description.ilike(like_term), Movie.keywords.ilike(like_term), Movie.director.ilike(like_term)))
+    if genre:
+        query = query.where(Movie.genre == genre)
+    sort_options = {"newest": (Movie.release_year.desc(), Movie.created_at.desc()), "oldest": (Movie.release_year.asc(), Movie.created_at.desc()), "rated": (Movie.rating.desc(), Movie.release_year.desc()), "alpha": (Movie.title.asc(),)}
+    if sort == "popular":
+        view_counts = select(MovieView.movie_id, func.count(MovieView.id).label("view_count")).group_by(MovieView.movie_id).subquery()
+        query = query.outerjoin(view_counts, view_counts.c.movie_id == Movie.id).order_by(func.coalesce(view_counts.c.view_count, 0).desc(), Movie.title.asc())
+    else:
+        query = query.order_by(*sort_options.get(sort, sort_options["newest"]))
+    pagination = db.paginate(query, page=page, per_page=MOVIE_PAGE_SIZE)
+    return render_template("search.html", movies=pagination.items if (search_term or genre) else [], pagination=pagination, pagination_args={k: v for k, v in request.args.items() if k != "page"}, genres=get_genres(), current_query=search_term, current_sort=sort)
+
+
+@main.route("/genres")
+def genres():
+    return render_template("genres.html", genres=get_genres())
+
+
+@main.route("/continue-watching")
+def continue_watching():
+    user = get_current_user()
+    items = []
+    if user:
+        items = db.session.scalars(
+            _published_movies_query()
+            .join(WatchHistory, WatchHistory.movie_id == Movie.id)
+            .where(WatchHistory.user_id == user.id, WatchHistory.completed.is_(False))
+            .order_by(WatchHistory.last_watched_at.desc())
+            .limit(24)
+        ).all()
+        if not items:
+            items = db.session.scalars(
+                _published_movies_query()
+                .join(Watchlist, Watchlist.movie_id == Movie.id)
+                .where(Watchlist.user_id == user.id)
+                .order_by(Watchlist.created_at.desc())
+                .limit(24)
+            ).all()
+    return render_template("continue_watching.html", items=items)
+
+
+@main.route("/about")
+def about():
+    return render_template("about.html")
+
+
+@main.route("/contact")
+def contact():
+    contact_email = db.session.scalar(select(Setting.value).where(Setting.key == "contact_email"))
+    return render_template("contact.html", contact_email=contact_email)
+
+
+@main.route("/privacy")
+def privacy_policy():
+    return render_template("privacy.html")
+
+
+@main.route("/terms")
+def terms():
+    return render_template("terms.html")
+
+
+@main.route("/copyright")
+def copyright_policy():
+    return render_template("copyright.html")
+
+
+@main.route("/robots.txt")
+def robots_txt():
+    content = "User-agent: *\nAllow: /\nSitemap: " + url_for("main.sitemap_xml", _external=True) + "\n"
+    return current_app.response_class(content, mimetype="text/plain")
+
+
+@main.route("/sitemap.xml")
+def sitemap_xml():
+    pages = [
+        url_for("main.home", _external=True),
+        url_for("main.movies", _external=True),
+        url_for("main.genres", _external=True),
+        url_for("main.trending", _external=True),
+        url_for("main.latest", _external=True),
+        url_for("main.search", _external=True),
+        url_for("main.about", _external=True),
+        url_for("main.contact", _external=True),
+        url_for("main.privacy_policy", _external=True),
+        url_for("main.terms", _external=True),
+        url_for("main.copyright_policy", _external=True),
+    ]
+    movie_ids = db.session.scalars(_published_movies_query().with_only_columns(Movie.id)).all()
+    for mid in movie_ids:
+        pages.append(url_for("main.movie_detail", movie_id=mid, _external=True))
+    for g in get_genres():
+        pages.append(url_for("main.genre_page", genre_name=g, _external=True))
+    urls = "".join(f"<url><loc>{p}</loc></url>" for p in pages)
+    xml = '<?xml version="1.0" encoding="UTF-8"?>' + f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>'
+    return current_app.response_class(xml, mimetype="application/xml")
+
+
+def _now_str():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _new_token():
+    return secrets.token_urlsafe(32)
+
+
+@main.route("/watchlist")
+@user_required
+def watchlist_page():
+    user = get_current_user()
+    movies = db.session.scalars(
+        _published_movies_query()
+        .join(Watchlist, Watchlist.movie_id == Movie.id)
+        .where(Watchlist.user_id == user.id)
+        .order_by(Watchlist.created_at.desc())
+    ).all()
+    return render_template("watchlist.html", movies=movies)
+
+
+@main.route("/favourites")
+@user_required
+def favourites_page():
+    user = get_current_user()
+    movies = db.session.scalars(
+        _published_movies_query()
+        .join(Favourite, Favourite.movie_id == Movie.id)
+        .where(Favourite.user_id == user.id)
+        .order_by(Favourite.created_at.desc())
+    ).all()
+    return render_template("favourites.html", movies=movies)
+
+
+@main.route("/toggle-favourite/<int:movie_id>", methods=["POST"])
+@user_required
+def toggle_favourite(movie_id: int):
+    user = get_current_user()
+    if _public_movie(movie_id) is None:
+        abort(404)
+    entry = db.session.scalar(select(Favourite).where(Favourite.user_id == user.id, Favourite.movie_id == movie_id))
+    if entry:
+        db.session.delete(entry)
+        flash("Removed from favourites.", "success")
+    else:
+        db.session.add(Favourite(user_id=user.id, movie_id=movie_id, created_at=_now_str()))
+        flash("Added to favourites.", "success")
+    db.session.commit()
+    return redirect(request.referrer or url_for("main.movie_detail", movie_id=movie_id))
+
+
+@main.route("/history")
+@user_required
+def watch_history_page():
+    user = get_current_user()
+    entries = db.session.scalars(
+        select(WatchHistory).where(WatchHistory.user_id == user.id).order_by(WatchHistory.last_watched_at.desc()).limit(100)
+    ).all()
+    movie_ids = [e.movie_id for e in entries]
+    movies = {m.id: m for m in db.session.scalars(select(Movie).where(Movie.id.in_(movie_ids))).all()} if movie_ids else {}
+    return render_template("continue_watching.html", items=[movies[e.movie_id] for e in entries if e.movie_id in movies], history_mode=True)
+
+
+@main.route("/api/watch-progress/<int:movie_id>", methods=["POST"])
+@user_required
+def save_watch_progress(movie_id: int):
+    user = get_current_user()
+    if _public_movie(movie_id) is None:
+        return jsonify({"error": "not found"}), 404
+    data = request.get_json(silent=True) or {}
+    try:
+        progress = max(0, int(data.get("progress_seconds", 0)))
+        duration = data.get("duration_seconds")
+        duration = int(duration) if duration is not None else None
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid data"}), 400
+    completed = bool(data.get("completed")) or (duration and progress >= max(0, duration - 5))
+    entry = db.session.scalar(select(WatchHistory).where(WatchHistory.user_id == user.id, WatchHistory.movie_id == movie_id))
+    if not entry:
+        entry = WatchHistory(user_id=user.id, movie_id=movie_id, last_watched_at=_now_str())
+        db.session.add(entry)
+    entry.progress_seconds = progress
+    entry.duration_seconds = duration
+    entry.completed = completed
+    entry.last_watched_at = _now_str()
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@main.route("/profile/edit", methods=["GET", "POST"])
+@user_required
+def edit_profile():
+    user = get_current_user()
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9_]{3,32}", username):
+            flash("Username must be 3 to 32 characters using letters, numbers or underscores.", "error")
+            return render_template("profile_edit.html", user=user)
+        if len(email) > 254 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+            flash("Please enter a valid email address.", "error")
+            return render_template("profile_edit.html", user=user)
+        existing = db.session.scalar(select(User).where(or_(User.username == username, User.email == email), User.id != user.id))
+        if existing:
+            flash("Username or email is already in use.", "error")
+            return render_template("profile_edit.html", user=user)
+        if email != user.email:
+            user.email_verified = False
+        user.username = username
+        user.email = email
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash("Username or email is already in use.", "error")
+            return render_template("profile_edit.html", user=user)
+        flash("Profile updated.", "success")
+        return redirect(url_for("main.profile"))
+    return render_template("profile_edit.html", user=user)
+
+
+@main.route("/profile/change-password", methods=["POST"])
+@user_required
+def change_password():
+    user = get_current_user()
+    current_password = request.form.get("current_password", "")
+    new_password = request.form.get("new_password", "")
+    if not check_password_hash(user.password_hash, current_password):
+        flash("Current password is incorrect.", "error")
+        return redirect(url_for("main.edit_profile"))
+    if len(new_password) < 12 or len(new_password) > 128:
+        flash("Password must be between 12 and 128 characters.", "error")
+        return redirect(url_for("main.edit_profile"))
+    user.password_hash = generate_password_hash(new_password)
+    db.session.commit()
+    flash("Password changed successfully.", "success")
+    return redirect(url_for("main.profile"))
+
+
+@main.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    reset_link = None
+    if request.method == "POST":
+        ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+        if _rate_limited(f"forgot:{ip}", 5, 300):
+            flash("Too many requests. Please try again later.", "error")
+            return render_template("forgot_password.html"), 429
+        email = request.form.get("email", "").strip()
+        user = db.session.scalar(select(User).where(User.email == email))
+        if user:
+            token = _new_token()
+            db.session.add(PasswordResetToken(user_id=user.id, token=token, expires_at=(datetime.now(timezone.utc) + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")))
+            db.session.commit()
+            reset_link = url_for("main.reset_password", token=token, _external=True)
+            current_app.logger.info("Password reset link generated for user_id=%s", user.id)
+        flash("If an account exists for that email, a reset link has been generated.", "success")
+    return render_template("forgot_password.html", reset_link=reset_link)
+
+
+@main.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token: str):
+    rec = db.session.scalar(select(PasswordResetToken).where(PasswordResetToken.token == token))
+    if not rec or rec.used_at:
+        flash("This reset link is invalid or has already been used.", "error")
+        return redirect(url_for("main.forgot_password"))
+    if rec.expires_at < _now_str():
+        flash("This reset link has expired.", "error")
+        return redirect(url_for("main.forgot_password"))
+    user = db.session.get(User, rec.user_id)
+    if not user:
+        flash("Account not found.", "error")
+        return redirect(url_for("main.forgot_password"))
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        if len(password) < 12 or len(password) > 128:
+            flash("Password must be between 12 and 128 characters.", "error")
+            return render_template("reset_password.html")
+        user.password_hash = generate_password_hash(password)
+        rec.used_at = _now_str()
+        db.session.commit()
+        flash("Password reset successful. Please log in.", "success")
+        return redirect(url_for("main.login"))
+    return render_template("reset_password.html")
+
+
+@main.route("/verify-email/<token>")
+@user_required
+def verify_email(token: str):
+    rec = db.session.scalar(select(EmailVerificationToken).where(EmailVerificationToken.token == token))
+    if not rec or rec.used_at or rec.expires_at < _now_str():
+        flash("Verification link is invalid or expired.", "error")
+        return redirect(url_for("main.profile"))
+    user = get_current_user()
+    if rec.user_id != user.id:
+        abort(403)
+    user.email_verified = True
+    rec.used_at = _now_str()
+    db.session.commit()
+    flash("Email verified.", "success")
+    return redirect(url_for("main.profile"))
+
+
+@main.route("/admin/users")
+@admin_required
+def admin_users():
+    users = db.session.scalars(select(User).order_by(User.created_at.desc())).all()
+    return render_template("admin_users.html", users=users)
+
+
+@main.route("/admin/users/<int:user_id>/toggle-active", methods=["POST"])
+@admin_required
+def admin_toggle_user_active(user_id: int):
+    actor = get_current_user()
+    user = db.session.get(User, user_id)
+    if not user:
+        abort(404)
+    if user.id == actor.id:
+        flash("You cannot suspend your own account.", "error")
+        return redirect(url_for("main.admin_users"))
+    user.is_active = not bool(getattr(user, "is_active", True))
+    _record_admin_action("user.active_toggled", "user", user.id)
+    db.session.commit()
+    flash("User status updated.", "success")
+    return redirect(url_for("main.admin_users"))
+
+
+@main.route("/admin/settings", methods=["GET", "POST"])
+@admin_required
+def admin_settings():
+    keys = [
+        "site_name", "contact_email", "contact_info", "announcement", "maintenance_mode",
+        "ads_enabled", "ads_config", "ads_head_code", "ads_home_banner", "ads_incontent", "ads_movie_detail"
+    ]
+    if request.method == "POST":
+        for key in keys:
+            val = (request.form.get(key) or "").strip()
+            row = db.session.get(Setting, key)
+            if row is None:
+                row = Setting(key=key, value=val)
+                db.session.add(row)
+            else:
+                row.value = val
+        _record_admin_action("settings.updated", "setting", None)
+        db.session.commit()
+        flash("Settings saved.", "success")
+        return redirect(url_for("main.admin_settings"))
+    settings = {k: (db.session.get(Setting, k).value if db.session.get(Setting, k) else "") for k in keys}
+    return render_template("admin_settings.html", settings=settings)
+
+
+@main.route("/admin/advertising")
+@admin_required
+def admin_advertising():
+    return render_template("admin_ads.html")
+
+
+@main.route("/admin/analytics")
+@admin_required
+def admin_analytics():
+    stats = {
+        "movies": db.session.scalar(select(func.count(Movie.id))) or 0,
+        "published": db.session.scalar(select(func.count(Movie.id)).select_from(Movie).join(MovieRights).where(MovieRights.published.is_(True), MovieRights.rights_verified.is_(True))) or 0,
+        "users": db.session.scalar(select(func.count(User.id))) or 0,
+        "views": db.session.scalar(select(func.count(MovieView.id))) or 0,
+    }
+    view_counts = select(MovieView.movie_id, func.count(MovieView.id).label("c")).group_by(MovieView.movie_id).subquery()
+    popular_rows = db.session.execute(select(Movie, view_counts.c.c).join(view_counts, view_counts.c.movie_id == Movie.id).order_by(view_counts.c.c.desc()).limit(10)).all()
+    popular = [(row[0], row[1]) for row in popular_rows]
+    return render_template("admin_analytics.html", stats=stats, popular=popular)
+
+
+@main.route("/admin/import-metadata")
+@admin_required
+def admin_import_metadata():
+    query = request.args.get("q", "").strip()
+    results = []
+    error = None
+    if query:
+        try:
+            data = tmdb_search_movies(query, page=1)
+            results = data.get("results") or []
+        except (MetadataConfigError, MetadataProviderError) as e:
+            error = str(e)
+    return render_template("admin_import_metadata.html", query=query, results=results, error=error)
+
+
+@main.route("/admin/import-metadata/<int:tmdb_id>", methods=["POST"])
+@admin_required
+def admin_import_metadata_item(tmdb_id: int):
+    try:
+        data = tmdb_get_movie(tmdb_id)
+        mapped = map_tmdb_movie(data)
+    except (MetadataConfigError, MetadataProviderError) as e:
+        flash(str(e), "error")
+        return redirect(url_for("main.admin_import_metadata"))
+    # Avoid obvious duplicates by title+year when possible
+    existing = db.session.scalar(select(Movie).where(Movie.title == mapped["title"], Movie.release_year == mapped.get("release_year")))
+    if existing:
+        flash("A movie with this title/year already exists. Opening it for review.", "success")
+        return redirect(url_for("main.edit_admin_movie", movie_id=existing.id))
+    movie = Movie(
+        title=mapped["title"] or "Untitled",
+        description=mapped.get("description"),
+        release_year=mapped.get("release_year"),
+        genre=mapped.get("genre"),
+        director=mapped.get("director"),
+        language=mapped.get("language"),
+        rating=mapped.get("rating"),
+        poster_url=mapped.get("poster_url"),
+        backdrop_url=mapped.get("backdrop_url"),
+        trailer_url=mapped.get("trailer_url"),
+        availability="Restricted",
+        created_at=_now_str(),
+        is_featured=False,
+    )
+    db.session.add(movie)
+    db.session.flush()
+    db.session.add(MovieDetails(movie=movie, runtime_minutes=mapped.get("runtime_minutes"), cast_members=mapped.get("cast_members")))
+    # Imported metadata only: unpublished, no verified rights/distribution permission.
+    db.session.add(MovieRights(movie=movie, rights_verified=False, streaming_allowed=False, download_allowed=False, published=False))
+    _record_admin_action("movie.imported_metadata", "movie", movie.id)
+    db.session.commit()
+    flash("Metadata imported as an unpublished draft. Review details, add documented rights, and publish only if you are authorised. " + (mapped.get("attribution") or ""), "success")
+    return redirect(url_for("main.edit_admin_movie", movie_id=movie.id))
+
+
+@main.app_errorhandler(404)
+def not_found_error(error):
+    return render_template("404.html"), 404
+
+
+@main.app_errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return render_template("500.html"), 500
+
+
 @main.app_context_processor
 def inject_globals():
     user = get_current_user()
+    ads_keys = ["ads_enabled", "ads_head_code", "ads_home_banner", "ads_incontent", "ads_movie_detail"]
+    ads = {}
+    for k in ads_keys:
+        row = db.session.get(Setting, k)
+        ads[k] = row.value if row and row.value else ""
     return {
         "current_user": user,
         "is_admin": bool(user and user.is_admin),
         "featured_movie": get_featured_movie(),
+        "site_ads": ads,
+        "ads_on": ads.get("ads_enabled") == "on",
     }
 
 

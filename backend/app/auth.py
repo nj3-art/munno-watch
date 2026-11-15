@@ -30,8 +30,13 @@ def is_in_watchlist(user_id: int, movie_id: int) -> bool:
 def user_required(view_func):
     @wraps(view_func)
     def wrapper(*args, **kwargs):
-        if get_current_user() is None:
+        user = get_current_user()
+        if user is None:
             return redirect(url_for("main.login", next=request.full_path.rstrip("?")))
+        if hasattr(user, "is_active") and not user.is_active:
+            session.pop("user_id", None)
+            flash("Your account is not active.", "error")
+            return redirect(url_for("main.login"))
         return view_func(*args, **kwargs)
 
     return wrapper

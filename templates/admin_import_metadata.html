@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Import Metadata | CINEZONE{% endblock %}
+{% block content %}
+<section class="page-header container"><div><span class="eyebrow">Administration</span><h1>Import movie metadata</h1><p>Search a legitimate metadata provider and import details for admin review. <strong>Metadata import does not grant streaming/download rights.</strong></p></div></section>
+<section class="container content-card">
+  <p><a href="{{ url_for('main.admin') }}" class="secondary-btn">Back to dashboard</a></p>
+  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+  <form method="get" class="filter-form" style="margin-top:1rem">
+    <input type="search" name="q" value="{{ query or '' }}" placeholder="Search movie title" required />
+    <button type="submit" class="primary-btn">Search provider</button>
+  </form>
+  <p class="muted">Provider: TMDB (when `TMDB_API_KEY` is configured). Attribution: This product uses the TMDB API but is not endorsed or certified by TMDB. Review all imported data and set documented rights before publishing.</p>
+
+  {% if results %}
+  <h2>Results</h2>
+  <div class="movie-grid">
+    {% for r in results %}
+    <article class="movie-card results-card">
+      <div class="poster-wrap">
+        {% if r.poster_path %}<img src="https://image.tmdb.org/t/p/w342{{ r.poster_path }}" alt="" />{% else %}<div class="poster-placeholder">No poster</div>{% endif %}
+      </div>
+      <div class="card-info">
+        <h3>{{ r.title }}</h3>
+        <div class="bottom-line"><span>{{ r.release_date or '' }}</span></div>
+        <form method="post" action="{{ url_for('main.admin_import_metadata_item', tmdb_id=r.id) }}" style="margin-top:.5rem">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button type="submit" class="primary-btn">Import for review</button>
+        </form>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% elif query %}
+  <p>No results found (or provider unavailable).</p>
+  {% endif %}
+</section>
+{% endblock %}

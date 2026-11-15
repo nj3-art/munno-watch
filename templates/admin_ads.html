@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Advertising & Monetization | CINEZONE{% endblock %}
+{% block content %}
+<section class="page-header container"><div><span class="eyebrow">Administration</span><h1>Advertising & Monetization</h1></div></section>
+<section class="container content-card">
+  <p><a href="{{ url_for('main.admin') }}" class="secondary-btn">Back to dashboard</a> <a href="{{ url_for('main.admin_settings') }}" class="primary-btn">Configure ad slots</a></p>
+
+  <h2>1) Make the site live and compliant (required for approval)</h2>
+  <ul>
+    <li>Deploy publicly with HTTPS, domain, managed DB, and reliable hosting/storage.</li>
+    <li>Publish only <strong>rights-cleared/authorised</strong> content (no piracy/unauthorised streams or downloads).</li>
+    <li>Ensure legal pages (Privacy, Terms, Copyright/takedown, Contact) and ad disclosures are accurate; enable consent where required.</li>
+    <li>Provide good UX and genuine traffic (no incentivised clicks, no deceptive UI, no intrusive/pop-up ads that violate policies).</li>
+  </ul>
+
+  <h2>2) Automated in-app placements (already built)</h2>
+  <p>Once enabled, ads display automatically across the site. In <a href="{{ url_for('main.admin_settings') }}">Settings</a> you can turn ads On and paste approved provider code for: global/head script, homepage banner, in-content/browse slot, and movie details slot. Use responsive, policy-compliant formats.</p>
+
+  <h2>3) Ad network (e.g. Google AdSense) — approval not guaranteed</h2>
+  <ul>
+    <li>Apply with your live, compliant site; meet eligibility, identity, and policy requirements.</li>
+    <li>After approval, paste the provider’s approved code into Settings slots. Never fabricate impressions/clicks/revenue.</li>
+  </ul>
+
+  <h2>4) Getting paid (Uganda) — verify official options</h2>
+  <p>CineZone does not process payouts and must never collect payment credentials. Payouts come from your ad provider account based on their thresholds/schedule and <strong>officially supported methods for your account/country</strong>.</p>
+  <ul>
+    <li>Check your provider’s current payout settings/docs for Uganda (available methods, verification, tax info, minimums).</li>
+    <li><strong>Do not assume</strong> MTN/Airtel Mobile Money or any specific card method is supported unless the provider explicitly offers it to your account.</li>
+    <li>Keep informational records (provider, period, reported earnings, status, date, currency, reference) in your own bookkeeping/admin notes.</li>
+  </ul>
+
+  <h2>5) Other legitimate revenue</h2>
+  <p>You can arrange direct, policy-compliant advertising/sponsorships with businesses (configure placements in settings). Keep records transparent and avoid misleading or intrusive ads.</p>
+</section>
+{% endblock %}

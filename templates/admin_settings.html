@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Admin Settings | CINEZONE{% endblock %}
+{% block content %}
+<section class="page-header container"><div><span class="eyebrow">Administration</span><h1>Website settings</h1></div></section>
+<section class="container content-card">
+  <p><a href="{{ url_for('main.admin') }}" class="secondary-btn">Back to dashboard</a></p>
+  <form method="post" class="auth-form" style="max-width:720px;margin-top:1rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <label>Site name <input type="text" name="site_name" value="{{ settings.get('site_name','CineZone') }}" /></label>
+    <label>Contact email <input type="email" name="contact_email" value="{{ settings.get('contact_email','') }}" /></label>
+    <label>Contact info / address <textarea name="contact_info" rows="3">{{ settings.get('contact_info','') }}</textarea></label>
+    <label>Homepage announcement <textarea name="announcement" rows="3">{{ settings.get('announcement','') }}</textarea></label>
+    <label>Maintenance mode <select name="maintenance_mode"><option value="off" {% if settings.get('maintenance_mode')!='on' %}selected{% endif %}>Off</option><option value="on" {% if settings.get('maintenance_mode')=='on' %}selected{% endif %}>On</option></select></label>
+    <label>Advertising enabled <select name="ads_enabled"><option value="off" {% if settings.get('ads_enabled')!='on' %}selected{% endif %}>Off</option><option value="on" {% if settings.get('ads_enabled')=='on' %}selected{% endif %}>On</option></select></label>
+    <label>AdSense/Ad config notes (no secrets) <textarea name="ads_config" rows="3">{{ settings.get('ads_config','') }}</textarea></label>
+    <h3 style="margin-top:1rem">Ad placements (paste approved provider code only)</h3>
+    <p class="muted">Use only ad code from providers/networks you are approved for and that comply with policies (e.g. Google AdSense). Do not use deceptive, forced, or pop-up/pop-under ads that violate policies or harm users. Ads appear only when “Advertising enabled” is On.</p>
+    <label>Head/global ad script (e.g. AdSense loader) <textarea name="ads_head_code" rows="4" placeholder="&lt;script ...&gt;...&lt;/script&gt;">{{ settings.get('ads_head_code','') }}</textarea></label>
+    <label>Homepage banner slot <textarea name="ads_home_banner" rows="4">{{ settings.get('ads_home_banner','') }}</textarea></label>
+    <label>In-content/browse slot <textarea name="ads_incontent" rows="4">{{ settings.get('ads_incontent','') }}</textarea></label>
+    <label>Movie details slot <textarea name="ads_movie_detail" rows="4">{{ settings.get('ads_movie_detail','') }}</textarea></label>
+    <button type="submit" class="primary-btn">Save settings</button>
+  </form>
+  <p class="muted" style="margin-top:1rem">Revenue depends on provider approval, eligible traffic, and policy compliance. CineZone does not process payouts—configure payout methods in your ad provider account (verify current options for Uganda). Never collect payment credentials in this app.</p>
+</section>
+{% endblock %}

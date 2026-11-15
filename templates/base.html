@@ -4,10 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}CINEZONE{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}CineZone — discover movies, browse genres, watch official trailers, and access legally distributable content.{% endblock %}" />
+    <meta property="og:site_name" content="CineZone" />
+    <meta property="og:title" content="{% block og_title %}{{ self.title() }}{% endblock %}" />
+    <meta property="og:description" content="{{ self.meta_description() }}" />
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}" />
+    <link rel="canonical" href="{% block canonical %}{{ request.url }}{% endblock %}" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='assets/logos/favicon.svg') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    {% if ads_on and site_ads.ads_head_code %}{{ site_ads.ads_head_code|safe }}{% endif %}
   </head>
   <body>
     <header class="topbar">
@@ -20,17 +28,18 @@
         <div class="nav-links">
           <a href="{{ url_for('main.home') }}">Home</a>
           <a href="{{ url_for('main.movies') }}">Movies</a>
-          <a href="#">Genres</a>
-          <a href="{{ url_for('main.movies', sort='newest') }}">Latest Releases</a>
-          <a href="{{ url_for('main.movies', sort='popular') }}">Trending</a>
+          <a href="{{ url_for('main.genres') }}">Genres</a>
+          <a href="{{ url_for('main.latest') }}">Latest Releases</a>
+          <a href="{{ url_for('main.trending') }}">Trending</a>
         </div>
 
         <div class="nav-actions">
-          <form class="search-compact" action="{{ url_for('main.movies') }}" method="get">
-            <input type="search" name="q" placeholder="Search movies" aria-label="Search movies" />
+          <form class="search-compact" action="{{ url_for('main.search') }}" method="get">
+            <input type="search" name="q" placeholder="Search movies" aria-label="Search movies" value="{{ request.args.get('q','') }}" />
             <button type="submit">Search</button>
           </form>
           {% if current_user %}
+            <a href="{{ url_for('main.continue_watching') }}" class="ghost-btn">Continue</a>
             <a href="{{ url_for('main.profile') }}" class="secondary-btn">{{ current_user.username }}</a>
             {% if is_admin %}
               <a href="{{ url_for('main.admin') }}" class="secondary-btn">Admin</a>
@@ -68,27 +77,52 @@
             <span class="brand-mark">C</span>
             <span>CINEZONE</span>
           </div>
-          <p>Discover premium entertainment, handpicked tracks, and cinematic experiences.</p>
+          <p>Discover movies, official trailers, and legally distributable entertainment in a premium cinematic experience.</p>
         </div>
         <div>
           <h4>Explore</h4>
           <ul>
             <li><a href="{{ url_for('main.movies') }}">Movies</a></li>
-            <li><a href="{{ url_for('main.movies', sort='popular') }}">Trending</a></li>
-            <li><a href="{{ url_for('main.movies', sort='newest') }}">Latest</a></li>
+            <li><a href="{{ url_for('main.genres') }}">Genres</a></li>
+            <li><a href="{{ url_for('main.trending') }}">Trending</a></li>
+            <li><a href="{{ url_for('main.latest') }}">Latest Releases</a></li>
+            <li><a href="{{ url_for('main.search') }}">Search</a></li>
           </ul>
         </div>
         <div>
           <h4>Account</h4>
           <ul>
             <li><a href="{{ url_for('main.profile') }}">Profile</a></li>
+            <li><a href="{{ url_for('main.continue_watching') }}">Continue Watching</a></li>
             <li><a href="{{ url_for('main.login') }}">Login</a></li>
             <li><a href="{{ url_for('main.register') }}">Register</a></li>
           </ul>
         </div>
+        <div>
+          <h4>Information</h4>
+          <ul>
+            <li><a href="{{ url_for('main.about') }}">About</a></li>
+            <li><a href="{{ url_for('main.contact') }}">Contact</a></li>
+            <li><a href="{{ url_for('main.privacy_policy') }}">Privacy Policy</a></li>
+            <li><a href="{{ url_for('main.terms') }}">Terms of Service</a></li>
+            <li><a href="{{ url_for('main.copyright_policy') }}">Copyright Policy</a></li>
+          </ul>
+        </div>
       </div>
+      <div class="container footer-bottom"><small>&copy; {{ 2026 }} CineZone. Access to titles is subject to rights and availability. Advertising, where shown, is subject to applicable policies and disclosures.</small></div>
     </footer>
 
+    <div id="consent-banner" class="consent-banner" style="display:none">
+      <div class="container consent-inner">
+        <p>We use essential cookies for site functionality. If enabled, advertising/analytics technologies may use cookies per our <a href="{{ url_for('main.privacy_policy') }}">Privacy Policy</a>. You can continue browsing or accept.</p>
+        <div class="cta-row"><button id="consent-accept" class="primary-btn" type="button">Accept</button><button id="consent-dismiss" class="secondary-btn" type="button">Dismiss</button></div>
+      </div>
+    </div>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+      (function(){try{if(!localStorage.getItem('cz_consent')){var b=document.getElementById('consent-banner');if(b)b.style.display='block';}
+      function set(){localStorage.setItem('cz_consent','1');var b=document.getElementById('consent-banner');if(b)b.style.display='none';}
+      var a=document.getElementById('consent-accept'),d=document.getElementById('consent-dismiss'); if(a)a.onclick=set; if(d)d.onclick=set;}catch(e){}})();
+    </script>
   </body>
 </html>

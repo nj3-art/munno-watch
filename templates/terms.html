@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Terms of Service | CINEZONE{% endblock %}
+{% block content %}
+<section class="page-header container"><div><span class="eyebrow">Legal</span><h1>Terms of Service</h1></div></section>
+<section class="container content-card prose">
+  <p><em>Last updated: configure on publish. This template is provided for platform readiness and may require review by a qualified legal professional.</em></p>
+  <h2>1. Acceptance</h2>
+  <p>By accessing or using CineZone, you agree to these Terms and applicable policies. If you do not agree, do not use the service.</p>
+  <h2>2. Service description</h2>
+  <p>CineZone provides movie discovery and access to trailers and, where authorised, streaming or downloads of legally distributable content. Availability may vary by title, rights, territory, and time.</p>
+  <h2>3. Accounts</h2>
+  <p>You are responsible for maintaining the confidentiality of your account credentials and for activity under your account. Provide accurate information and comply with applicable age/eligibility requirements.</p>
+  <h2>4. Permitted use and restrictions</h2>
+  <p>Do not misuse the service, attempt unauthorised access, interfere with security, scrape or redistribute content unlawfully, or use CineZone to access/distribute pirated or unauthorised material. Download options are available only where explicitly permitted.</p>
+  <h2>5. Intellectual property and rights</h2>
+  <p>Content, trademarks, and materials are owned by their respective rights holders and protected by law. Access is granted only as permitted by applicable rights and these Terms.</p>
+  <h2>6. Advertising</h2>
+  <p>CineZone may display advertisements. Ad experiences are subject to applicable policies and disclosures; users must not engage in fraudulent or incentivised ad interaction.</p>
+  <h2>7. Disclaimers and liability</h2>
+  <p>The service is provided on an “as available” basis to the extent permitted by law. CineZone does not guarantee uninterrupted availability or that all metadata/content is error-free.</p>
+  <h2>8. Changes and contact</h2>
+  <p>We may update the service and these Terms. For questions, see the <a href="{{ url_for('main.contact') }}">Contact</a> page.</p>
+</section>
+{% endblock %}

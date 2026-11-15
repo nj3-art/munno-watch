@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Edit Profile | CINEZONE{% endblock %}
+{% block content %}
+<section class="auth-shell container"><div class="auth-card" style="max-width:720px">
+  <span class="eyebrow">Account</span><h1>Edit profile</h1>
+  <form method="post" class="auth-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <label>Username <input type="text" name="username" value="{{ user.username }}" required /></label>
+    <label>Email address <input type="email" name="email" value="{{ user.email }}" required /></label>
+    <button type="submit" class="primary-btn">Save changes</button>
+  </form>
+  <hr style="margin:1.5rem 0;border-color:rgba(255,255,255,.1)">
+  <h2>Change password</h2>
+  <form method="post" action="{{ url_for('main.change_password') }}" class="auth-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <label>Current password <input type="password" name="current_password" required /></label>
+    <label>New password <input type="password" name="new_password" minlength="12" maxlength="128" required /></label>
+    <button type="submit" class="secondary-btn">Update password</button>
+  </form>
+</div></section>
+{% endblock %}
