@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block title %}Watch {{ movie.title }} | CINEZONE{% endblock %}
+
+{% block content %}
+  <section class="container watch-wrapper">
+    <div class="watch-header">
+      <span class="eyebrow">Now Playing</span>
+      <h1>{{ movie.title }}</h1>
+    </div>
+    <div class="player-panel">
+      <video controls playsinline preload="metadata" poster="{{ movie.poster_url }}">
+        <source src="{{ movie.movie_url }}" type="video/mp4" />
+        Your browser does not support the video tag.
+      </video>
+    </div>
+    <div class="watch-actions">
+      <a href="{{ url_for('movie_detail', movie_id=movie.id) }}" class="secondary-btn">Back to Details</a>
+    </div>
+  </section>
+{% endblock %}

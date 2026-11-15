@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block title %}Browse Movies | CINEZONE{% endblock %}
+
+{% block content %}
+  <section class="page-header container">
+    <div>
+      <span class="eyebrow">Movie Discovery</span>
+      <h1>Browse the catalog</h1>
+    </div>
+  </section>
+
+  <section class="filters container">
+    <form class="filter-form" method="get" action="{{ url_for('movies') }}">
+      <input type="search" name="q" value="{{ current_query }}" placeholder="Search by title, genre, director or keyword" />
+      <select name="genre">
+        <option value="">All genres</option>
+        {% for genre in genres %}
+          <option value="{{ genre }}">{{ genre }}</option>
+        {% endfor %}
+      </select>
+      <select name="language">
+        <option value="">All languages</option>
+        <option value="English">English</option>
+        <option value="Hindi">Hindi</option>
+        <option value="French">French</option>
+        <option value="Japanese">Japanese</option>
+        <option value="Spanish">Spanish</option>
+      </select>
+      <select name="rating">
+        <option value="">Rating</option>
+        <option value="8">8.0+</option>
+        <option value="8.5">8.5+</option>
+        <option value="9">9.0+</option>
+      </select>
+      <select name="availability">
+        <option value="">Availability</option>
+        <option value="Streaming">Streaming</option>
+        <option value="Premium">Premium</option>
+        <option value="Free">Free</option>
+      </select>
+      <select name="sort">
+        <option value="newest" {% if current_sort == 'newest' %}selected{% endif %}>Newest first</option>
+        <option value="oldest" {% if current_sort == 'oldest' %}selected{% endif %}>Oldest first</option>
+        <option value="popular" {% if current_sort == 'popular' %}selected{% endif %}>Most popular</option>
+        <option value="rated" {% if current_sort == 'rated' %}selected{% endif %}>Highest rated</option>
+        <option value="alpha" {% if current_sort == 'alpha' %}selected{% endif %}>Alphabetical</option>
+      </select>
+      <button type="submit" class="primary-btn">Apply</button>
+    </form>
+  </section>
+
+  <section class="container movie-grid">
+    {% if movies %}
+      {% for movie in movies %}
+        <article class="movie-card results-card">
+          <div class="poster-wrap">
+            <img src="{{ movie.poster_url }}" alt="{{ movie.title }} poster" />
+            <div class="card-overlay">
+              <a href="{{ url_for('movie_detail', movie_id=movie.id) }}" class="card-link">View Details</a>
+            </div>
+          </div>
+          <div class="card-info">
+            <div class="top-line">
+              <span>{{ movie.genre }}</span>
+              <span>★ {{ movie.rating }}</span>
+            </div>
+            <h3>{{ movie.title }}</h3>
+            <div class="bottom-line">
+              <span>{{ movie.release_year }}</span>
+              <span>{{ movie.availability }}</span>
+            </div>
+          </div>
+        </article>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+        <h2>No movies matched your search.</h2>
+        <p>Try a different title, genre, language or rating filter.</p>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

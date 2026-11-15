@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ movie.title }} | CINEZONE{% endblock %}
+
+{% block content %}
+  <section class="movie-hero" style="background-image: linear-gradient(180deg, rgba(8,11,24,0.7), rgba(8,11,24,0.96)), url('{{ movie.backdrop_url }}')">
+    <div class="container movie-hero-wrap">
+      <img src="{{ movie.poster_url }}" alt="{{ movie.title }} poster" class="movie-poster" />
+      <div class="movie-summary">
+        <span class="eyebrow">Now Streaming</span>
+        <h1>{{ movie.title }}</h1>
+        <div class="meta-row">
+          <span>{{ movie.release_year }}</span>
+          <span>{{ movie.genre }}</span>
+          <span>{{ movie.language }}</span>
+          <span>★ {{ movie.rating }}</span>
+        </div>
+        <p>{{ movie.description }}</p>
+        <div class="cta-row">
+          <a href="{{ url_for('watch_movie', movie_id=movie.id) }}" class="primary-btn">Watch Now</a>
+          <form action="{{ url_for('toggle_watchlist', movie_id=movie.id) }}" method="post" class="inline-form">
+            <button type="submit" class="secondary-btn">
+              {% if in_watchlist %}Remove from Watchlist{% else %}Add to Watchlist{% endif %}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="container detail-grid">
+    <div class="detail-panel">
+      <h2>Overview</h2>
+      <ul class="facts-list">
+        <li><strong>Director:</strong> {{ movie.director }}</li>
+        <li><strong>Language:</strong> {{ movie.language }}</li>
+        <li><strong>Availability:</strong> {{ movie.availability }}</li>
+        <li><strong>Popular Score:</strong> {{ movie.popularity }}</li>
+        <li><strong>Genres:</strong> {{ movie.genre }}</li>
+      </ul>
+    </div>
+    <div class="detail-panel">
+      <h2>Trailer</h2>
+      <div class="video-frame">
+        <iframe src="{{ movie.trailer_url }}" title="{{ movie.title }} trailer" allowfullscreen></iframe>
+      </div>
+    </div>
+  </section>
+
+  <section class="container related-section">
+    <div class="section-header">
+      <h2>Related Movies</h2>
+    </div>
+    <div class="movie-row">
+      {% for item in related %}
+        <article class="movie-card">
+          <div class="poster-wrap">
+            <img src="{{ item.poster_url }}" alt="{{ item.title }} poster" />
+            <div class="card-overlay">
+              <a href="{{ url_for('movie_detail', movie_id=item.id) }}" class="card-link">View Details</a>
+            </div>
+          </div>
+          <div class="card-info">
+            <div class="top-line">
+              <span>{{ item.genre }}</span>
+              <span>★ {{ item.rating }}</span>
+            </div>
+            <h3>{{ item.title }}</h3>
+            <div class="bottom-line">
+              <span>{{ item.release_year }}</span>
+              <span>{{ item.availability }}</span>
+            </div>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

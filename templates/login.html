@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block title %}Login | CINEZONE{% endblock %}
+
+{% block content %}
+  <section class="auth-shell container">
+    <div class="auth-card">
+      <span class="eyebrow">Welcome back</span>
+      <h1>Sign in</h1>
+      <form method="post" class="auth-form">
+        <label>
+          Username or email
+          <input type="text" name="username" required />
+        </label>
+        <label>
+          Password
+          <input type="password" name="password" required />
+        </label>
+        <button type="submit" class="primary-btn full-width">Login</button>
+      </form>
+      <p class="auth-switch">Need an account? <a href="{{ url_for('register') }}">Register here</a></p>
+      <p class="demo-account">Demo admin: admin / admin123</p>
+    </div>
+  </section>
+{% endblock %}

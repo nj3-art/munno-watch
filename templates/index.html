@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block title %}CINEZONE | Streaming & Discovery{% endblock %}
+
+{% block content %}
+  <section class="hero" style="background-image: linear-gradient(90deg, rgba(8,11,24,0.94), rgba(8,11,24,0.5)), url('{{ featured.backdrop_url }}')">
+    <div class="container hero-wrap">
+      <div class="hero-content">
+        <span class="eyebrow">Featured Premiere</span>
+        <h1>{{ featured.title }}</h1>
+        <div class="meta-row">
+          <span>{{ featured.release_year }}</span>
+          <span>{{ featured.genre }}</span>
+          <span>{{ featured.language }}</span>
+          <span>★ {{ featured.rating }}</span>
+        </div>
+        <p>{{ featured.description }}</p>
+        <div class="cta-row">
+          <a class="primary-btn" href="{{ url_for('watch_movie', movie_id=featured.id) }}">Watch Trailer</a>
+          <a class="secondary-btn" href="{{ url_for('movie_detail', movie_id=featured.id) }}">View Details</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="genre-strip container">
+    {% for genre in genres[:8] %}
+      <a href="{{ url_for('genre_page', genre_name=genre) }}" class="genre-pill">{{ genre }}</a>
+    {% endfor %}
+  </section>
+
+  {% for section in sections %}
+    <section class="movie-section container">
+      <div class="section-header">
+        <h2>{{ section.title }}</h2>
+        <a href="{{ url_for('movies') }}">Browse all</a>
+      </div>
+      <div class="movie-row">
+        {% for movie in section.movies %}
+          <article class="movie-card">
+            <div class="poster-wrap">
+              <img src="{{ movie.poster_url }}" alt="{{ movie.title }} poster" />
+              <div class="card-overlay">
+                <a href="{{ url_for('movie_detail', movie_id=movie.id) }}" class="card-link">View Details</a>
+              </div>
+            </div>
+            <div class="card-info">
+              <div class="top-line">
+                <span>{{ movie.genre }}</span>
+                <span>★ {{ movie.rating }}</span>
+              </div>
+              <h3>{{ movie.title }}</h3>
+              <div class="bottom-line">
+                <span>{{ movie.release_year }}</span>
+                <span>{{ movie.availability }}</span>
+              </div>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  {% endfor %}
+
+  <section class="container collections-wrap">
+    <div class="section-header">
+      <h2>Featured Collections</h2>
+    </div>
+    <div class="collections-grid">
+      {% for collection in collections %}
+        <a href="{{ url_for('genre_page', genre_name=collection.name) }}" class="collection-card" style="background-image: linear-gradient(180deg, rgba(17,24,39,0.2), rgba(8,11,24,0.9)), url('{{ collection.image }}')">
+          <span>{{ collection.name }}</span>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

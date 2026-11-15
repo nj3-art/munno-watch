@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Panel | CINEZONE{% endblock %}
+
+{% block content %}
+  <section class="container admin-shell">
+    <div class="section-header admin-header">
+      <h1>Administration</h1>
+    </div>
+
+    <div class="admin-panel">
+      <h2>Featured movie</h2>
+      <form method="post" class="admin-form">
+        <select name="featured_movie_id">
+          {% for movie in movies %}
+            <option value="{{ movie.id }}" {% if current_featured and current_featured.id == movie.id %}selected{% endif %}>{{ movie.title }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="primary-btn">Update featured movie</button>
+      </form>
+    </div>
+
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Genre</th>
+            <th>Rating</th>
+            <th>Year</th>
+            <th>Availability</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for movie in movies %}
+          <tr>
+            <td><a href="{{ url_for('movie_detail', movie_id=movie.id) }}">{{ movie.title }}</a></td>
+            <td>{{ movie.genre }}</td>
+            <td>{{ movie.rating }}</td>
+            <td>{{ movie.release_year }}</td>
+            <td>{{ movie.availability }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

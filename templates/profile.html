@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block title %}Profile | CINEZONE{% endblock %}
+
+{% block content %}
+  <section class="container profile-shell">
+    <div class="profile-header">
+      <div>
+        <span class="eyebrow">Your account</span>
+        <h1>{{ user.username }}</h1>
+      </div>
+      <a href="{{ url_for('movies') }}" class="secondary-btn">Continue browsing</a>
+    </div>
+
+    <div class="profile-grid">
+      <div class="profile-card">
+        <h2>Profile</h2>
+        <ul class="facts-list">
+          <li><strong>Username:</strong> {{ user.username }}</li>
+          <li><strong>Email:</strong> {{ user.email }}</li>
+          <li><strong>Member since:</strong> {{ user.created_at }}</li>
+        </ul>
+      </div>
+
+      <div class="profile-card">
+        <h2>Watchlist</h2>
+        {% if watchlist %}
+          <div class="watchlist-list">
+            {% for movie in watchlist %}
+              <a href="{{ url_for('movie_detail', movie_id=movie.id) }}" class="watchlist-item">
+                <img src="{{ movie.poster_url }}" alt="{{ movie.title }} poster" />
+                <div>
+                  <strong>{{ movie.title }}</strong>
+                  <span>{{ movie.genre }} · {{ movie.release_year }}</span>
+                </div>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p>No saved movies yet. Explore the catalog and add a few to your watchlist.</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+{% endblock %}
