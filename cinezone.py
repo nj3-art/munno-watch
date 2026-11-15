@@ -1,25 +1,46 @@
 from __future__ import annotations
 
 import os
+import re
+import secrets
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List, Optional
+from urllib.parse import urlsplit
 
-from flask import Flask, flash, g, redirect, render_template, request, session, url_for
+from flask import Flask, abort, current_app, flash, g, redirect, render_template, request, session, url_for
+from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
+APP_ENV = os.environ.get("APP_ENV", "development").lower()
+if APP_ENV not in {"development", "production", "testing"}:
+    raise RuntimeError("APP_ENV must be development, testing or production.")
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    if APP_ENV == "production":
+        raise RuntimeError("SECRET_KEY must be configured in production.")
+    SECRET_KEY = secrets.token_urlsafe(32)
+
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "cinezone-dev-secret")
+app.config.update(
+    APP_ENV=APP_ENV,
+    SECRET_KEY=SECRET_KEY,
+    DATABASE_PATH=os.path.join(os.path.dirname(os.path.abspath(__file__)), "cinezone.db"),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=APP_ENV == "production",
+)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "cinezone.db")
 PORT = int(os.environ.get("PORT", "5000"))
+csrf = CSRFProtect(app)
 
 
 def get_db() -> sqlite3.Connection:
     db = getattr(g, "_database", None)
     if db is None:
-        db = sqlite3.connect(DB_PATH)
+        db = sqlite3.connect(current_app.config["DATABASE_PATH"])
         db.row_factory = sqlite3.Row
         g._database = db
     return db
@@ -32,8 +53,8 @@ def close_db(_exception: Optional[BaseException]) -> None:
         db.close()
 
 
-def ensure_db() -> None:
-    db = sqlite3.connect(DB_PATH)
+def ensure_db(database_path: Optional[str] = None) -> None:
+    db = sqlite3.connect(database_path or app.config["DATABASE_PATH"])
     db.row_factory = sqlite3.Row
     db.executescript(
         """
@@ -100,13 +121,23 @@ def ensure_db() -> None:
 
 
 def seed_admin_user(db: sqlite3.Connection) -> None:
-    admin_password = generate_password_hash("admin123")
+    admin_password = os.environ.get("CINEZONE_ADMIN_PASSWORD")
+    if not admin_password:
+        return
+    username = os.environ.get("CINEZONE_ADMIN_USERNAME", "admin")
+    email = os.environ.get("CINEZONE_ADMIN_EMAIL", "admin@cinezone.app")
+    if len(admin_password) < 12 or len(admin_password) > 128:
+        raise RuntimeError("CINEZONE_ADMIN_PASSWORD must be between 12 and 128 characters.")
+    if not re.fullmatch(r"[A-Za-z0-9_]{3,32}", username):
+        raise RuntimeError("CINEZONE_ADMIN_USERNAME must be 3 to 32 letters, numbers or underscores.")
+    if len(email) > 254 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        raise RuntimeError("CINEZONE_ADMIN_EMAIL must be a valid email address.")
     db.execute(
         """
         INSERT INTO users (username, email, password_hash, is_admin, created_at)
         VALUES (?, ?, ?, 1, ?)
         """,
-        ("admin", "admin@cinezone.app", admin_password, datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")),
+        (username, email, generate_password_hash(admin_password), datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
     )
 
 
@@ -351,11 +382,18 @@ def is_in_watchlist(user_id: int, movie_id: int) -> bool:
 def user_required(view_func):
     def wrapper(*args, **kwargs):
         if get_current_user() is None:
-            return redirect(url_for("login", next=request.path))
+            return redirect(url_for("login", next=request.full_path.rstrip("?")))
         return view_func(*args, **kwargs)
 
     wrapper.__name__ = view_func.__name__
     return wrapper
+
+
+def is_safe_redirect_target(target: Optional[str]) -> bool:
+    if not target or target.startswith("//") or "\\" in target:
+        return False
+    parsed = urlsplit(target)
+    return not parsed.scheme and not parsed.netloc and target.startswith("/")
 
 
 def admin_required(view_func):
@@ -431,16 +469,28 @@ def movies():
         params.append(genre)
 
     if release_year:
+        try:
+            year = int(release_year)
+        except ValueError:
+            abort(400, description="Release year must be a whole number.")
+        if year < 1888 or year > datetime.now(timezone.utc).year + 5:
+            abort(400, description="Release year is outside the supported range.")
         query += " AND release_year = ?"
-        params.append(int(release_year))
+        params.append(year)
 
     if language:
         query += " AND language = ?"
         params.append(language)
 
     if rating:
+        try:
+            minimum_rating = float(rating)
+        except ValueError:
+            abort(400, description="Rating must be a number.")
+        if not 0 <= minimum_rating <= 10:
+            abort(400, description="Rating must be between 0 and 10.")
         query += " AND rating >= ?"
-        params.append(float(rating))
+        params.append(minimum_rating)
 
     if availability:
         query += " AND availability = ?"
@@ -495,13 +545,15 @@ def watch_movie(movie_id: int):
 def toggle_watchlist(movie_id: int):
     user = get_current_user()
     db = get_db()
+    if get_movie(movie_id) is None:
+        abort(404)
     if is_in_watchlist(user["id"], movie_id):
         db.execute("DELETE FROM watchlists WHERE user_id = ? AND movie_id = ?", (user["id"], movie_id))
         flash("Removed from your watchlist.", "success")
     else:
         db.execute(
             "INSERT INTO watchlists (user_id, movie_id, created_at) VALUES (?, ?, ?)",
-            (user["id"], movie_id, datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")),
+            (user["id"], movie_id, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
         )
         flash("Added to your watchlist.", "success")
     db.commit()
@@ -513,10 +565,22 @@ def register():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         email = request.form.get("email", "").strip()
-        password = request.form.get("password", "").strip()
+        password = request.form.get("password", "")
 
         if not username or not email or not password:
             flash("Please complete all required fields.", "error")
+            return render_template("register.html")
+
+        if not re.fullmatch(r"[A-Za-z0-9_]{3,32}", username):
+            flash("Username must be 3 to 32 characters using letters, numbers or underscores.", "error")
+            return render_template("register.html")
+
+        if len(email) > 254 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+            flash("Please enter a valid email address.", "error")
+            return render_template("register.html")
+
+        if len(password) < 12 or len(password) > 128:
+            flash("Password must be between 12 and 128 characters.", "error")
             return render_template("register.html")
 
         db = get_db()
@@ -526,7 +590,7 @@ def register():
 
         db.execute(
             "INSERT INTO users (username, email, password_hash, is_admin, created_at) VALUES (?, ?, ?, 0, ?)",
-            (username, email, generate_password_hash(password), datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")),
+            (username, email, generate_password_hash(password), datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
         )
         db.commit()
         flash("Registration successful. Please log in.", "success")
@@ -539,7 +603,7 @@ def register():
 def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
-        password = request.form.get("password", "").strip()
+        password = request.form.get("password", "")
         user = get_db().execute(
             "SELECT * FROM users WHERE username = ? OR email = ?",
             (username, username),
@@ -549,15 +613,18 @@ def login():
             flash("Invalid username or password.", "error")
             return render_template("login.html")
 
+        session.clear()
         session["user_id"] = user["id"]
         flash("Welcome back to CineZone.", "success")
-        next_url = request.form.get("next") or request.args.get("next") or url_for("home")
+        next_url = request.form.get("next") or request.args.get("next")
+        if not is_safe_redirect_target(next_url):
+            next_url = url_for("home")
         return redirect(next_url)
 
     return render_template("login.html")
 
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 def logout():
     session.pop("user_id", None)
     flash("You have been logged out.", "success")
@@ -609,6 +676,17 @@ def inject_globals():
     }
 
 
+@app.after_request
+def add_security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if current_app.config["APP_ENV"] == "production":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
+
+
 @app.route("/genre/<string:genre_name>")
 def genre_page(genre_name: str):
     movies = get_db().execute("SELECT * FROM movies WHERE genre = ? ORDER BY rating DESC", (genre_name,)).fetchall()
@@ -617,4 +695,4 @@ def genre_page(genre_name: str):
 
 if __name__ == "__main__":
     ensure_db()
-    app.run(host="0.0.0.0", port=PORT, debug=True)
+    app.run(host="0.0.0.0", port=PORT, debug=APP_ENV == "development")

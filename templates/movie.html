@@ -19,6 +19,7 @@
         <div class="cta-row">
           <a href="{{ url_for('watch_movie', movie_id=movie.id) }}" class="primary-btn">Watch Now</a>
           <form action="{{ url_for('toggle_watchlist', movie_id=movie.id) }}" method="post" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button type="submit" class="secondary-btn">
               {% if in_watchlist %}Remove from Watchlist{% else %}Add to Watchlist{% endif %}
             </button>

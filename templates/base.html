@@ -35,7 +35,10 @@
             {% if is_admin %}
               <a href="{{ url_for('admin') }}" class="secondary-btn">Admin</a>
             {% endif %}
-            <a href="{{ url_for('logout') }}" class="ghost-btn">Logout</a>
+            <form action="{{ url_for('logout') }}" method="post" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="ghost-btn">Logout</button>
+            </form>
           {% else %}
             <a href="{{ url_for('login') }}" class="ghost-btn">Login</a>
             <a href="{{ url_for('register') }}" class="primary-btn">Register</a>
