@@ -3,11 +3,15 @@
 {% block title %}{{ movie.title }} | CINEZONE{% endblock %}
 
 {% block content %}
-  <section class="movie-hero" style="background-image: linear-gradient(180deg, rgba(8,11,24,0.7), rgba(8,11,24,0.96)), url('{{ movie.backdrop_url }}')">
+  <section class="movie-hero">
     <div class="container movie-hero-wrap">
-      <img src="{{ movie.poster_url }}" alt="{{ movie.title }} poster" class="movie-poster" />
+      {% if movie.assets and movie.assets.poster_key %}
+        <img src="{{ url_for('main.poster', movie_id=movie.id) }}" alt="{{ movie.title }} poster" class="movie-poster" />
+      {% else %}
+        <div class="movie-poster poster-placeholder" role="img" aria-label="Poster not uploaded">Poster pending</div>
+      {% endif %}
       <div class="movie-summary">
-        <span class="eyebrow">Now Streaming</span>
+        <span class="eyebrow">Movie details</span>
         <h1>{{ movie.title }}</h1>
         <div class="meta-row">
           <span>{{ movie.release_year }}</span>
@@ -17,7 +21,16 @@
         </div>
         <p>{{ movie.description }}</p>
         <div class="cta-row">
-          <a href="{{ url_for('main.watch_movie', movie_id=movie.id) }}" class="primary-btn">Watch Now</a>
+          {% if can_stream and has_video %}
+            <a href="{{ url_for('main.watch_movie', movie_id=movie.id) }}" class="primary-btn">Watch Now</a>
+          {% elif movie.rights and movie.rights.streaming_allowed %}
+            <span class="secondary-btn" aria-disabled="true">Video file unavailable</span>
+          {% else %}
+            <span class="secondary-btn" aria-disabled="true">Streaming not permitted</span>
+          {% endif %}
+          {% if can_download and has_video %}
+            <a href="{{ url_for('main.download_movie', movie_id=movie.id) }}" class="secondary-btn">Download</a>
+          {% endif %}
           <form action="{{ url_for('main.toggle_watchlist', movie_id=movie.id) }}" method="post" class="inline-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button type="submit" class="secondary-btn">
@@ -36,15 +49,21 @@
         <li><strong>Director:</strong> {{ movie.director }}</li>
         <li><strong>Language:</strong> {{ movie.language }}</li>
         <li><strong>Availability:</strong> {{ movie.availability }}</li>
-        <li><strong>Popular Score:</strong> {{ movie.popularity }}</li>
+        <li><strong>Runtime:</strong> {{ movie.details.runtime_minutes if movie.details and movie.details.runtime_minutes else 'Not listed' }} minutes</li>
+        <li><strong>Cast:</strong> {{ movie.details.cast_members if movie.details and movie.details.cast_members else 'Not listed' }}</li>
         <li><strong>Genres:</strong> {{ movie.genre }}</li>
       </ul>
     </div>
     <div class="detail-panel">
       <h2>Trailer</h2>
-      <div class="video-frame">
-        <iframe src="{{ movie.trailer_url }}" title="{{ movie.title }} trailer" allowfullscreen></iframe>
-      </div>
+      {% if movie.assets and movie.assets.trailer_key and can_stream %}
+        <video class="local-video" controls preload="metadata">
+          <source src="{{ url_for('main.trailer_movie', movie_id=movie.id) }}" type="{{ movie.assets.trailer_mime }}" />
+          Your browser does not support this trailer format.
+        </video>
+      {% else %}
+        <p>No verified trailer is available.</p>
+      {% endif %}
     </div>
   </section>
 
@@ -56,7 +75,11 @@
       {% for item in related %}
         <article class="movie-card">
           <div class="poster-wrap">
-            <img src="{{ item.poster_url }}" alt="{{ item.title }} poster" />
+            {% if item.assets and item.assets.poster_key %}
+              <img src="{{ url_for('main.poster', movie_id=item.id) }}" alt="{{ item.title }} poster" />
+            {% else %}
+              <div class="poster-placeholder" role="img" aria-label="Poster not uploaded">Poster pending</div>
+            {% endif %}
             <div class="card-overlay">
               <a href="{{ url_for('main.movie_detail', movie_id=item.id) }}" class="card-link">View Details</a>
             </div>

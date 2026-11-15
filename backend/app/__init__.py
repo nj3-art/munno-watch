@@ -4,6 +4,7 @@ from typing import Optional
 from flask import Flask
 
 from .config import Config
+from .commands import create_admin_command
 from .extensions import csrf, db, migrate
 
 
@@ -28,4 +29,5 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
 
     app.register_blueprint(main)
     app.cli.add_command(models.import_legacy_sqlite_command)
+    app.cli.add_command(create_admin_command)
     return app

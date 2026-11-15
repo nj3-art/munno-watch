@@ -35,7 +35,15 @@ class LegacySQLiteImportTests(unittest.TestCase):
 
     def _create_legacy_source(self):
         source_engine = create_engine(f"sqlite:///{self.source_path}")
-        db.metadata.create_all(source_engine)
+        db.metadata.create_all(
+            source_engine,
+            tables=[
+                Movie.__table__,
+                User.__table__,
+                Watchlist.__table__,
+                Setting.__table__,
+            ],
+        )
         with source_engine.begin() as connection:
             connection.execute(
                 Movie.__table__.insert(),

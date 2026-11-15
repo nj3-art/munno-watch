@@ -28,7 +28,11 @@
           <div class="watchlist-list">
             {% for movie in watchlist %}
               <a href="{{ url_for('main.movie_detail', movie_id=movie.id) }}" class="watchlist-item">
-                <img src="{{ movie.poster_url }}" alt="{{ movie.title }} poster" />
+                {% if movie.assets and movie.assets.poster_key %}
+                  <img src="{{ url_for('main.poster', movie_id=movie.id) }}" alt="{{ movie.title }} poster" />
+                {% else %}
+                  <span class="poster-thumbnail-placeholder" role="img" aria-label="Poster not uploaded"></span>
+                {% endif %}
                 <div>
                   <strong>{{ movie.title }}</strong>
                   <span>{{ movie.genre }} · {{ movie.release_year }}</span>

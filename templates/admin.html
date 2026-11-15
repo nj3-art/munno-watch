@@ -6,18 +6,37 @@
   <section class="container admin-shell">
     <div class="section-header admin-header">
       <h1>Administration</h1>
+      <a class="primary-btn" href="{{ url_for('main.new_admin_movie') }}">Add movie</a>
     </div>
 
     <div class="admin-panel">
       <h2>Featured movie</h2>
       <form method="post" class="admin-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-        <select name="featured_movie_id">
-          {% for movie in movies %}
+        <select name="featured_movie_id" required>
+          {% for movie in featured_options %}
             <option value="{{ movie.id }}" {% if current_featured and current_featured.id == movie.id %}selected{% endif %}>{{ movie.title }}</option>
           {% endfor %}
         </select>
         <button type="submit" class="primary-btn">Update featured movie</button>
+      </form>
+    </div>
+
+    <div class="admin-panel">
+      <h2>Movie catalogue</h2>
+      <form method="get" class="admin-search">
+        <label>Search titles and genres
+          <input type="search" name="q" value="{{ search }}" />
+        </label>
+        <label>Publication
+          <select name="status">
+            {% for status in ('all', 'published', 'unpublished') %}
+              <option value="{{ status }}" {% if status_filter == status %}selected{% endif %}>{{ status|capitalize }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit" class="secondary-btn">Search</button>
+        {% if search or status_filter != 'all' %}<a class="ghost-btn" href="{{ url_for('main.admin') }}">Clear</a>{% endif %}
       </form>
     </div>
 
@@ -27,23 +46,60 @@
           <tr>
             <th>Title</th>
             <th>Genre</th>
-            <th>Rating</th>
-            <th>Year</th>
-            <th>Availability</th>
+            <th>Publication</th>
+            <th>Rights</th>
+            <th>Uploads</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for movie in movies %}
-          <tr>
-            <td><a href="{{ url_for('main.movie_detail', movie_id=movie.id) }}">{{ movie.title }}</a></td>
-            <td>{{ movie.genre }}</td>
-            <td>{{ movie.rating }}</td>
-            <td>{{ movie.release_year }}</td>
-            <td>{{ movie.availability }}</td>
-          </tr>
+            <tr>
+              <td>{{ movie.title }}</td>
+              <td>{{ movie.genre or '—' }}</td>
+              <td>{% if movie.rights and movie.rights.published %}Published{% else %}Unpublished{% endif %}</td>
+              <td>{% if movie.rights and movie.rights.rights_verified %}Verified{% else %}Awaiting verification{% endif %}</td>
+              <td>
+                Poster: {{ 'yes' if movie.assets and movie.assets.poster_key else 'no' }} ·
+                Trailer: {{ 'yes' if movie.assets and movie.assets.trailer_key else 'no' }} ·
+                Video: {{ 'yes' if upload_status[movie.id] else 'no' }}
+              </td>
+              <td class="admin-actions">
+                <a class="secondary-btn" href="{{ url_for('main.edit_admin_movie', movie_id=movie.id) }}">Edit</a>
+                {% if movie.rights and movie.rights.published %}
+                  <form method="post" action="{{ url_for('main.unpublish_admin_movie', movie_id=movie.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button class="ghost-btn" type="submit">Unpublish</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="6">No movies match this search.</td></tr>
           {% endfor %}
         </tbody>
       </table>
+    </div>
+
+    <div class="admin-panel">
+      <h2>Recent accounts</h2>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Created</th></tr></thead>
+          <tbody>
+            {% for user in users %}
+              <tr>
+                <td>{{ user.username }}</td>
+                <td>{{ user.email }}</td>
+                <td>{{ 'Administrator' if user.is_admin else 'Member' }}</td>
+                <td>{{ user.created_at or '—' }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="4">No accounts found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </section>
 {% endblock %}

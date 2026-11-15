@@ -7,55 +7,57 @@ The project is midway through an incremental Flask refactor. Existing templates 
 ```text
 backend/
   app/
-    __init__.py     # create_app; registers extensions and Blueprints
+    __init__.py     # app factory and extension initialization
+    auth.py         # session lookup, permissions, redirect validation
+    commands.py     # interactive administrator setup
     config.py       # environment-based configuration
-    extensions.py   # CSRF, SQLAlchemy, and Flask-Migrate extensions
     database.py     # non-production schema initialization
-    models.py       # SQLAlchemy entities and safe legacy SQLite import
-    auth.py         # session user lookup, authorization decorators, redirect validation
-    routes.py       # main Blueprint and ORM-backed page handlers
+    extensions.py   # CSRF, SQLAlchemy, Flask-Migrate
+    models.py       # catalog, rights, assets, views, users, watchlists
+    routes.py       # current main Blueprint and page/media/admin routes
+    storage.py      # validated local and optional S3-compatible storage
   migrations/       # Alembic schema revisions
-  __init__.py
 cinezone.py         # compatibility and local development entry point
+wsgi.py             # production WSGI export
+Procfile            # Gunicorn runtime command
 templates/
 static/
 tests/
 ```
 
-`create_app()` constructs a Flask instance, configures the existing root-level `templates/` and `static/` directories, applies configuration overrides, initializes CSRF, SQLAlchemy, and Flask-Migrate, and registers the `main` Blueprint. Template endpoint references use the `main.` namespace. Existing public URLs are unchanged.
+`create_app()` configures the existing root-level `templates/` and `static/` directories, initializes CSRF/SQLAlchemy/Flask-Migrate, and registers the `main` Blueprint. Existing public URLs remain in place.
 
-SQLAlchemy models now back the current routes. `DATABASE_URL` selects the database; production requires a `mysql+pymysql://` URL, while local development defaults to the ignored `cinezone.db`. The local SQLite database remains untouched. `flask db upgrade` applies schema migrations; the explicit `import-legacy-sqlite` command copies records into a separately migrated empty target database.
+`DATABASE_URL` selects the database; production requires a `mysql+pymysql://` URL. Local development defaults to the ignored `cinezone.db`. The additive rights/media migration adds separate tables and does not alter legacy movie columns. The local SQLite database was not modified. See `migrations/README` before applying any migration to an existing legacy database.
 
-## Request/data flow today
+## Request/data flow
 
-1. `cinezone.py` imports `create_app()` and exports `app` for compatibility.
-2. The factory loads `backend/app/config.py`, initializes CSRF/SQLAlchemy/migrations, and registers `main`.
-3. Route handlers use `backend/app/auth.py` for session and permission checks and SQLAlchemy models for persistent data.
-4. The route handlers query local catalog records and render the existing templates.
+1. `cinezone.py` preserves the development/compatibility entry point; `wsgi.py` exports the production app.
+2. The factory loads configuration, initializes CSRF/SQLAlchemy/migrations, and registers the `main` Blueprint.
+3. Route handlers use `backend/app/auth.py` for account and administrator checks and SQLAlchemy models for persistent records.
+4. Public queries enforce publication and active, verified rights.
+5. Media routes enforce streaming/download permission, available territory restrictions, and availability rules.
+6. `backend/app/storage.py` stores local uploads outside `static/` or produces short-lived S3-compatible signed URLs.
+7. `/health` performs a database connectivity check for runtime monitoring.
 
-## Target boundaries
+## Responsibility boundaries and gaps
 
-Continue separating responsibilities without changing behavior gratuitously:
-
-- **Configuration/extensions:** app settings, CSRF, migration, and ORM extension objects.
-- **Models/database:** SQLAlchemy models, relationship constraints, migration setup, and legacy SQLite import tooling.
+- **Configuration/extensions:** app settings, CSRF, migrations, and ORM extension objects.
+- **Models/database:** entities, Alembic migrations, and safe legacy SQLite import tooling.
 - **Authentication:** user/role lookup, access checks, sessions, and account services.
-- **Routes/Blueprints:** focused page, authentication, catalog, and admin endpoints.
-- **Services:** metadata provider, storage, media authorization, email, and advertising adapters.
+- **Routes/Blueprints:** current page, authentication, catalog, and admin endpoints; route-group extraction remains.
+- **Storage/media:** local and optional S3-compatible storage. The S3 adapter is not provider-tested.
 - **Templates/static:** presentation only; no secrets or provider credentials.
+- **External rights/access:** rights verification is an admin attestation; territory data is not geolocated and non-free entitlements are not implemented.
 
-## Target database flow
-
-The intended production data path is Flask-SQLAlchemy to a managed MySQL service via an environment-provided database URL. Alembic/Flask-Migrate owns schema changes. The existing ignored `cinezone.db` must be backed up and imported through the explicit transactional command; it must not be deleted or used as the production database. The importer requires an empty destination, reads the source in SQLite read-only mode, preserves IDs and relationships, and removes known sample playback URLs from imported records. Development/test environments should be isolated from production data.
+The intended production data path is Flask-SQLAlchemy to an owner-selected MySQL service through an environment-provided URL. The explicit `import-legacy-sqlite` command imports a verified source backup into a separately migrated empty destination. It reads the source in read-only mode and refuses a non-empty target.
 
 ## External service boundaries
 
-Cloud storage, metadata, email, advertising, and video delivery should be accessed through server-side service adapters. Credentials belong in local environment configuration or provider dashboards, never templates or Git. An adapter is not considered operational until configured and verified against its provider.
+Cloud storage, metadata, email, advertising, and video delivery must be accessed through server-side adapters. Credentials belong in environment/provider secret settings, never templates or Git. An adapter is not considered operational until configured and verified against its provider. No hosting or external service is configured.
 
-## Current architectural limitations
+## Current limitations
 
-- Multiple route groups still share `backend/app/routes.py`.
-- Live MySQL connectivity and a production WSGI server have not been configured or verified.
-- The legacy SQLite schema is not retrofitted with migration constraints; use a separate empty destination for import.
-- There is no API versioning; existing routes are server-rendered HTML.
-- No hosting or external service has been configured.
+- `backend/app/routes.py` still contains several route groups.
+- Live MySQL and S3-compatible connectivity have not been verified; WSGI/Gunicorn has not been deployed.
+- There is no API versioning; current routes are server-rendered HTML.
+- Geolocation, entitlement/payment checks, rate limits, and full browser/device QA remain.

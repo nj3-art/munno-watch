@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ 'Edit' if movie else 'Add' }} Movie | CINEZONE{% endblock %}
+
+{% block content %}
+  <section class="container admin-shell">
+    <div class="section-header admin-header">
+      <div>
+        <span class="eyebrow">Catalogue management</span>
+        <h1>{{ 'Edit movie' if movie else 'Add movie' }}</h1>
+      </div>
+      <a class="secondary-btn" href="{{ url_for('main.admin') }}">Back to administration</a>
+    </div>
+
+    <form method="post" class="admin-editor" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <section class="admin-panel">
+        <h2>Movie details</h2>
+        <div class="admin-fields">
+          <label>Title
+            <input name="title" maxlength="255" required value="{{ values.title }}" />
+          </label>
+          <label>Description
+            <textarea name="description" rows="5" maxlength="10000">{{ values.description }}</textarea>
+          </label>
+          <label>Genre
+            <input name="genre" maxlength="100" value="{{ values.genre }}" />
+          </label>
+          <label>Director
+            <input name="director" maxlength="255" value="{{ values.director }}" />
+          </label>
+          <label>Cast
+            <textarea name="cast_members" rows="3" maxlength="5000">{{ values.cast_members }}</textarea>
+          </label>
+          <label>Language
+            <input name="language" maxlength="100" value="{{ values.language }}" />
+          </label>
+          <label>Release year
+            <input type="number" name="release_year" min="1888" max="{{ current_year }}" value="{{ values.release_year }}" />
+          </label>
+          <label>Runtime (minutes)
+            <input type="number" name="runtime_minutes" min="1" max="1000" value="{{ values.runtime_minutes }}" />
+          </label>
+          <label>Rating (0–10)
+            <input type="number" name="rating" min="0" max="10" step="0.1" value="{{ values.rating }}" />
+          </label>
+          <label>Search keywords
+            <input name="keywords" maxlength="2000" value="{{ values.keywords }}" />
+          </label>
+          <label>Access level
+            <select name="availability">
+              {% for access in ('Free', 'Members', 'Restricted') %}
+                <option value="{{ access }}" {% if values.availability == access %}selected{% endif %}>{{ access }}</option>
+              {% endfor %}
+            </select>
+            <small>Only Free titles are available to visitors. Other access levels are admin-only until entitlement controls exist.</small>
+          </label>
+        </div>
+      </section>
+
+      <section class="admin-panel">
+        <h2>Content rights</h2>
+        <p>Verify the underlying agreement yourself. Checking this box records your attestation; the application cannot validate a licence.</p>
+        <div class="admin-fields">
+          <label>Rights holder
+            <input name="rights_holder" maxlength="255" value="{{ values.rights_holder }}" />
+          </label>
+          <label>Licence / permission reference
+            <input name="license_reference" maxlength="255" value="{{ values.license_reference }}" />
+          </label>
+          <label>Permitted countries or territories
+            <input name="territories" maxlength="2000" value="{{ values.territories }}" placeholder="For example: Uganda, Kenya" />
+          </label>
+          <label>Licence start date
+            <input type="date" name="license_start" value="{{ values.license_start }}" />
+          </label>
+          <label>Licence expiry date
+            <input type="date" name="license_expiry" value="{{ values.license_expiry }}" />
+          </label>
+        </div>
+        <div class="admin-checks">
+          <label><input type="checkbox" name="rights_verified" {% if values.rights_verified %}checked{% endif %} /> I have verified the documented distribution rights</label>
+          <label><input type="checkbox" name="streaming_allowed" {% if values.streaming_allowed %}checked{% endif %} /> Streaming is permitted</label>
+          <label><input type="checkbox" name="download_allowed" {% if values.download_allowed %}checked{% endif %} /> Downloads are permitted</label>
+          <label><input type="checkbox" name="published" {% if values.published %}checked{% endif %} /> Publish this title</label>
+        </div>
+      </section>
+
+      <section class="admin-panel">
+        <h2>Local media uploads</h2>
+        <p>Files are stored outside the static web directory. Posters accept JPEG, PNG or WebP (5 MB max); trailers accept MP4 or WebM (50 MB max); movie files accept MP4 or WebM (512 MB max).</p>
+        <div class="admin-fields">
+          <label>Poster
+            <input type="file" name="poster_file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" />
+            {% if assets and assets.poster_key %}<small>Current poster is uploaded.</small>{% endif %}
+          </label>
+          <label>Trailer
+            <input type="file" name="trailer_file" accept=".mp4,.webm,video/mp4,video/webm" />
+            {% if assets and assets.trailer_key %}<small>Current trailer is uploaded.</small>{% endif %}
+          </label>
+          <label>Authorised movie file
+            <input type="file" name="video_file" accept=".mp4,.webm,video/mp4,video/webm" />
+            {% if assets and assets.video_key %}<small>Current video is uploaded ({{ assets.video_size }} bytes).</small>{% endif %}
+          </label>
+        </div>
+      </section>
+
+      <button type="submit" class="primary-btn">Save movie</button>
+    </form>
+  </section>
+{% endblock %}

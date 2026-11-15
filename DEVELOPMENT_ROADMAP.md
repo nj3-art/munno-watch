@@ -68,21 +68,25 @@ This roadmap is based on the verified current implementation in `PROJECT_AUDIT.m
 
 **Status: IN PROGRESS**
 
-- Add protected movie/genre CRUD, publication, and homepage configuration.
-- Add role/permission and user management with server-side authorization.
-- Add audit logging and dashboards only from real stored data.
+- [x] Add protected movie create/edit/unpublish workflows and publication/search filters.
+- [x] Add rights metadata, verified-rights attestation, upload status, and a recent user list.
+- [ ] Add genre CRUD, role/permission management, user management, and audit logging.
+- [ ] Add dashboards only from real stored data.
 
 ## Phase 8 — Rights and media delivery
 
-**Status: NOT STARTED**
+**Status: TESTED — PASS (local implementation)**
 
-- Store rights holder, licence reference, territories, permissions, dates, and restrictions.
-- Define a private S3-compatible storage interface and admin-only validated uploads.
-- Implement expiring playback/download access, activity logging, and missing-object handling.
-- Verify byte-range seeking with a configured provider. Add HLS/transcoding only when justified by real source files and audience requirements.
-- Use only content the owner is authorized to distribute; no sample URL is treated as production media.
+- [x] Store rights holder, licence reference, territories, permissions, dates, and publication state separately from legacy movie columns.
+- [x] Add admin-only upload handling and private local storage with extension, MIME, signature, and size validation.
+- [x] Gate publication, watch, stream, poster, trailer, download, genre, and watchlist paths on current rights.
+- [x] Add local range streaming and an optional S3-compatible signed-URL adapter.
+- [ ] Verify byte-range seeking with actual licensed media and a configured provider; browser testing remains.
+- [ ] Add geographic rights enforcement and entitlements; current conservative behavior restricts non-worldwide and non-free playback to admins.
+- [ ] Add media activity logging. HLS/transcoding remains conditional on real media requirements.
 
 **External boundary:** storage/CDN credentials and any media-processing account remain owner-managed and may incur storage, request, processing, and bandwidth costs.
+The S3 adapter is not provider-tested; local tests use a tiny synthetic file-signature fixture and do not establish real playback or distribution rights.
 
 ## Phase 9 — Monetization and analytics
 
@@ -97,18 +101,19 @@ This roadmap is based on the verified current implementation in `PROJECT_AUDIT.m
 
 **Status: IN PROGRESS**
 
-- Extend current CSRF, password, redirect, cookie, and header protections.
-- Add rate limits, secure upload handling, authorization tests, and safe production error behavior.
-- Review dependencies and configuration for production.
+- [x] Retain CSRF, password, redirect, cookie, and security-header protections.
+- [x] Add upload validation, generated storage keys, private files, and media authorization regression tests.
+- [ ] Add rate limits, broader production error handling review, dependency review, and external security testing.
 
 ## Phase 11 — Testing and QA
 
 **Status: IN PROGRESS**
 
-- Keep the test database isolated from the local user database.
-- Add unit/integration tests for database migrations, permissions, media authorization, and upload/download behavior.
-- Add browser/mobile tests and production-like startup checks where available.
-- Run all relevant tests after each phase and record exact counts and limitations.
+- [x] Keep automated tests and migration checks isolated from `cinezone.db`.
+- [x] Add route, authorization, publication, upload, range, download, S3-missing-configuration, health, and legacy-import tests.
+- [x] Verify additive migrations on disposable SQLite and generate offline MySQL DDL.
+- [ ] Add browser/mobile tests, real-media/provider integration tests, and production-like deployment checks.
+- Current local result: 26 unittest cases pass; this does not verify external services.
 
 ## Phase 12 — SEO and performance
 
@@ -120,11 +125,11 @@ This roadmap is based on the verified current implementation in `PROJECT_AUDIT.m
 
 ## Phase 13 — Deployment
 
-**Status: NOT STARTED**
+**Status: IN PROGRESS**
 
-- Add production WSGI/Gunicorn, health checks, logging, environment examples, and Render deployment configuration.
-- Document provider setup, HTTPS, domain configuration, backups, and monitoring.
-- Verify an actual deployment before claiming the site is live.
+- [x] Add WSGI/Gunicorn entry point, health endpoint, environment example, and deployment guide.
+- [ ] Select and configure a hosting provider and MySQL database with owner approval; no service is provisioned.
+- [ ] Configure HTTPS/domain, backups, logging, monitoring, and test the actual deployment before claiming the site is live.
 
 ## Phase 14 — Business readiness
 
@@ -136,4 +141,4 @@ This roadmap is based on the verified current implementation in `PROJECT_AUDIT.m
 
 ## Documentation deliverables
 
-Maintain `README.md`, `PROJECT_AUDIT.md`, `PROJECT_PROGRESS.md`, `DEVELOPMENT_ROADMAP.md`, `ARCHITECTURE.md`, `DATABASE_DOCUMENTATION.md`, `API_DOCUMENTATION.md`, `SECURITY_CHECKLIST.md`, `DEPLOYMENT_GUIDE.md`, `BACKUP_AND_RECOVERY.md`, `ENVIRONMENT_SETUP.md`, and `THIRD_PARTY_SERVICES.md` as the corresponding features and workflows are implemented. Documentation must distinguish local tests from externally verified behavior.
+Maintain `PROJECT_AUDIT.md`, `PROJECT_PROGRESS.md`, `DEVELOPMENT_ROADMAP.md`, `ARCHITECTURE.md`, and `DEPLOYMENT_GUIDE.md` as workflows evolve. Add database, security, backup, API, and third-party-service documentation alongside those features. Distinguish local tests from externally verified behavior.

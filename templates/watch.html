@@ -9,7 +9,14 @@
       <h1>{{ movie.title }}</h1>
     </div>
     <div class="player-panel">
-      <p>Playback is unavailable because no verified source is configured for this title.</p>
+      {% if has_video %}
+        <video class="local-video" controls playsinline preload="metadata">
+          <source src="{{ url_for('main.stream_movie', movie_id=movie.id) }}" type="{{ movie.assets.video_mime }}" />
+          Your browser does not support this video format.
+        </video>
+      {% else %}
+        <p>Playback is unavailable because no verified local video file is configured for this title.</p>
+      {% endif %}
     </div>
     <div class="watch-actions">
       <a href="{{ url_for('main.movie_detail', movie_id=movie.id) }}" class="secondary-btn">Back to Details</a>

@@ -36,3 +36,17 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     SESSION_COOKIE_SECURE = APP_ENV == "production"
+    MEDIA_STORAGE_PATH = os.environ.get(
+        "MEDIA_STORAGE_PATH", str(PROJECT_ROOT / "instance" / "media")
+    )
+    MAX_CONTENT_LENGTH = 600 * 1024 * 1024
+    MAX_POSTER_UPLOAD_BYTES = 5 * 1024 * 1024
+    MAX_TRAILER_UPLOAD_BYTES = 50 * 1024 * 1024
+    MAX_VIDEO_UPLOAD_BYTES = 512 * 1024 * 1024
+    STORAGE_BACKEND = os.environ.get("STORAGE_BACKEND", "local").lower()
+    S3_BUCKET = os.environ.get("S3_BUCKET")
+    S3_REGION = os.environ.get("S3_REGION")
+    S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL")
+
+    if STORAGE_BACKEND not in {"local", "s3"}:
+        raise RuntimeError("STORAGE_BACKEND must be either 'local' or 's3'.")

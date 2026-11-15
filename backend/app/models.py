@@ -6,7 +6,17 @@ from urllib.parse import urlsplit
 
 import click
 from flask import current_app
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text, UniqueConstraint, inspect
+from sqlalchemy import (
+    Boolean,
+    Date,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    inspect,
+)
 from sqlalchemy.engine import make_url
 from sqlalchemy.sql import insert
 
@@ -33,6 +43,65 @@ class Movie(db.Model):
     keywords = db.Column(Text)
     created_at = db.Column(String(32))
     is_featured = db.Column(Boolean, nullable=False, default=False)
+
+
+class MovieDetails(db.Model):
+    __tablename__ = "movie_details"
+
+    movie_id = db.Column(
+        Integer, ForeignKey("movies.id", ondelete="CASCADE"), primary_key=True
+    )
+    runtime_minutes = db.Column(Integer)
+    cast_members = db.Column(Text)
+    movie = db.relationship(
+        "Movie", backref=db.backref("details", uselist=False, cascade="all, delete-orphan")
+    )
+
+
+class MovieRights(db.Model):
+    __tablename__ = "movie_rights"
+
+    movie_id = db.Column(
+        Integer, ForeignKey("movies.id", ondelete="CASCADE"), primary_key=True
+    )
+    rights_holder = db.Column(String(255))
+    license_reference = db.Column(String(255))
+    territories = db.Column(Text)
+    license_start = db.Column(Date)
+    license_expiry = db.Column(Date)
+    rights_verified = db.Column(Boolean, nullable=False, default=False)
+    streaming_allowed = db.Column(Boolean, nullable=False, default=False)
+    download_allowed = db.Column(Boolean, nullable=False, default=False)
+    published = db.Column(Boolean, nullable=False, default=False)
+    movie = db.relationship(
+        "Movie", backref=db.backref("rights", uselist=False, cascade="all, delete-orphan")
+    )
+
+
+class MovieAsset(db.Model):
+    __tablename__ = "movie_assets"
+
+    movie_id = db.Column(
+        Integer, ForeignKey("movies.id", ondelete="CASCADE"), primary_key=True
+    )
+    poster_key = db.Column(String(255))
+    trailer_key = db.Column(String(255))
+    video_key = db.Column(String(255))
+    poster_mime = db.Column(String(100))
+    trailer_mime = db.Column(String(100))
+    video_mime = db.Column(String(100))
+    video_size = db.Column(Integer)
+    movie = db.relationship(
+        "Movie", backref=db.backref("assets", uselist=False, cascade="all, delete-orphan")
+    )
+
+
+class MovieView(db.Model):
+    __tablename__ = "movie_views"
+
+    id = db.Column(Integer, primary_key=True)
+    movie_id = db.Column(Integer, ForeignKey("movies.id", ondelete="CASCADE"), nullable=False)
+    viewed_at = db.Column(String(32), nullable=False)
 
 
 class User(db.Model):

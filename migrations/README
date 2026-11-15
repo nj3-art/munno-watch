@@ -1,1 +1,26 @@
-Single-database configuration for Flask.
+Single-database Alembic configuration for Flask-Migrate.
+
+Fresh development/test database:
+
+    flask --app backend.app:create_app db upgrade
+
+Existing legacy SQLite database:
+
+The existing database is not modified automatically by this repository change. Before applying any migration:
+
+1. Stop the application and make a separate backup copy of `cinezone.db`.
+2. Verify the backup and confirm the source database passes `PRAGMA integrity_check`.
+3. Confirm the legacy tables match the original schema represented by revision `55b61e8704a3`.
+4. Point `DATABASE_URL` explicitly at the existing database and stamp only the baseline revision. Stamping records migration history; it does not execute the baseline DDL.
+5. Apply the additive migration and verify the resulting revision and schema.
+
+Example (replace the database path with the verified absolute path):
+
+    APP_ENV=development DATABASE_URL=sqlite:////absolute/path/cinezone.db flask --app backend.app:create_app db stamp 55b61e8704a3
+    APP_ENV=development DATABASE_URL=sqlite:////absolute/path/cinezone.db flask --app backend.app:create_app db upgrade
+    APP_ENV=development DATABASE_URL=sqlite:////absolute/path/cinezone.db flask --app backend.app:create_app db current
+    APP_ENV=development DATABASE_URL=sqlite:////absolute/path/cinezone.db flask --app backend.app:create_app db check
+
+Do not stamp an unverified schema, run these commands against the only copy, or downgrade a production database. The additive revision creates the rights, asset, details, and view tables only; if development schema initialization already created them, it skips those existing tables.
+
+The legacy SQLite-to-MySQL importer is separate: create and migrate an empty destination database, review a verified source backup, then run `flask --app backend.app:create_app import-legacy-sqlite /path/to/backup.db`. The importer reads the source read-only and refuses a non-empty destination.

@@ -55,7 +55,11 @@
       {% for movie in movies %}
         <article class="movie-card results-card">
           <div class="poster-wrap">
-            <img src="{{ movie.poster_url }}" alt="{{ movie.title }} poster" />
+            {% if movie.assets and movie.assets.poster_key %}
+              <img src="{{ url_for('main.poster', movie_id=movie.id) }}" alt="{{ movie.title }} poster" />
+            {% else %}
+              <div class="poster-placeholder" role="img" aria-label="Poster not uploaded">Poster pending</div>
+            {% endif %}
             <div class="card-overlay">
               <a href="{{ url_for('main.movie_detail', movie_id=movie.id) }}" class="card-link">View Details</a>
             </div>
