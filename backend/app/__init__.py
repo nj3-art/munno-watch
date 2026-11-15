@@ -4,8 +4,7 @@ from typing import Optional
 from flask import Flask
 
 from .config import Config
-from .database import close_db
-from .extensions import csrf
+from .extensions import csrf, db, migrate
 
 
 def create_app(test_config: Optional[dict] = None) -> Flask:
@@ -20,9 +19,13 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
         app.config.update(test_config)
 
     csrf.init_app(app)
-    app.teardown_appcontext(close_db)
+    db.init_app(app)
+    migrate.init_app(app, db)
+
+    from . import models
 
     from .routes import main
 
     app.register_blueprint(main)
+    app.cli.add_command(models.import_legacy_sqlite_command)
     return app

@@ -5,23 +5,26 @@ from typing import Optional
 from urllib.parse import urlsplit
 
 from flask import flash, redirect, request, session, url_for
+from sqlalchemy import select
 
-from .database import get_db
+from .extensions import db
+from .models import User, Watchlist
 
 
-def get_current_user():
+def get_current_user() -> User | None:
     user_id = session.get("user_id")
     if not user_id:
         return None
-    return get_db().execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    return db.session.get(User, user_id)
 
 
 def is_in_watchlist(user_id: int, movie_id: int) -> bool:
-    row = get_db().execute(
-        "SELECT 1 FROM watchlists WHERE user_id = ? AND movie_id = ?",
-        (user_id, movie_id),
-    ).fetchone()
-    return row is not None
+    return db.session.scalar(
+        select(Watchlist.id).where(
+            Watchlist.user_id == user_id,
+            Watchlist.movie_id == movie_id,
+        )
+    ) is not None
 
 
 def user_required(view_func):
@@ -45,7 +48,7 @@ def admin_required(view_func):
     @wraps(view_func)
     def wrapper(*args, **kwargs):
         user = get_current_user()
-        if user is None or user["is_admin"] != 1:
+        if user is None or not user.is_admin:
             flash("Administrator access is required.", "error")
             return redirect(url_for("main.home"))
         return view_func(*args, **kwargs)

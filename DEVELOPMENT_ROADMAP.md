@@ -16,7 +16,7 @@ This roadmap is based on the verified current implementation in `PROJECT_AUDIT.m
 
 - Introduce a Flask application factory and configuration module.
 - Register current routes through a Blueprint without changing their public paths.
-- Extract CSRF initialization, request-scoped database connections, and authentication helpers.
+- Extract CSRF, database initialization, and authentication helpers.
 - Preserve `cinezone.py` as a compatibility/development entry point.
 - Extract SQLite schema/seed setup and split route groups into focused modules.
 - Keep templates and static assets in their existing locations until tested references are updated.
@@ -25,13 +25,14 @@ This roadmap is based on the verified current implementation in `PROJECT_AUDIT.m
 
 ## Phase 3 — SQLAlchemy, MySQL, and migration
 
-**Status: NOT STARTED**
+**Status: IN PROGRESS**
 
-- Add SQLAlchemy/Flask-SQLAlchemy and Flask-Migrate/Alembic.
-- Model current users, movies, settings, and watchlists with foreign keys, constraints, and indexes.
-- Configure a MySQL URL exclusively through environment variables; retain SQLite for local tests/development as appropriate.
-- Add migrations and seed only clearly identified sample data.
-- Write and test a repeatable SQLite export/import path. Back up the current ignored database before any migration; never delete it.
+- [x] Add SQLAlchemy/Flask-SQLAlchemy and Flask-Migrate/Alembic.
+- [x] Model current users, movies, settings, and watchlists with foreign keys and uniqueness constraints.
+- [x] Configure production MySQL URLs through `DATABASE_URL`; retain SQLite for local development/tests.
+- [x] Add an initial migration and an explicit, transactional SQLite import path for an empty target.
+- [ ] Configure and verify a live MySQL provider; do not activate or pay for a service without approval.
+- [ ] Test import against a backup of the actual local database after owner review; never alter or delete the source.
 - Expand the schema only alongside functional features (roles, rights, watch history, etc.).
 
 **External boundary:** an owner-selected managed MySQL provider and credentials are required for a live connection. Do not provision or pay for a service without approval.

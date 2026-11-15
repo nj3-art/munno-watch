@@ -9,10 +9,7 @@
       <h1>{{ movie.title }}</h1>
     </div>
     <div class="player-panel">
-      <video controls playsinline preload="metadata" poster="{{ movie.poster_url }}">
-        <source src="{{ movie.movie_url }}" type="video/mp4" />
-        Your browser does not support the video tag.
-      </video>
+      <p>Playback is unavailable because no verified source is configured for this title.</p>
     </div>
     <div class="watch-actions">
       <a href="{{ url_for('main.movie_detail', movie_id=movie.id) }}" class="secondary-btn">Back to Details</a>

@@ -3,25 +3,40 @@
 {% block title %}CINEZONE | Streaming & Discovery{% endblock %}
 
 {% block content %}
-  <section class="hero" style="background-image: linear-gradient(90deg, rgba(8,11,24,0.94), rgba(8,11,24,0.5)), url('{{ featured.backdrop_url }}')">
-    <div class="container hero-wrap">
-      <div class="hero-content">
-        <span class="eyebrow">Featured Premiere</span>
-        <h1>{{ featured.title }}</h1>
-        <div class="meta-row">
-          <span>{{ featured.release_year }}</span>
-          <span>{{ featured.genre }}</span>
-          <span>{{ featured.language }}</span>
-          <span>★ {{ featured.rating }}</span>
-        </div>
-        <p>{{ featured.description }}</p>
-        <div class="cta-row">
-          <a class="primary-btn" href="{{ url_for('main.watch_movie', movie_id=featured.id) }}">Watch Trailer</a>
-          <a class="secondary-btn" href="{{ url_for('main.movie_detail', movie_id=featured.id) }}">View Details</a>
+  {% if featured %}
+    <section class="hero" style="background-image: linear-gradient(90deg, rgba(8,11,24,0.94), rgba(8,11,24,0.5)), url('{{ featured.backdrop_url }}')">
+      <div class="container hero-wrap">
+        <div class="hero-content">
+          <span class="eyebrow">Featured Premiere</span>
+          <h1>{{ featured.title }}</h1>
+          <div class="meta-row">
+            <span>{{ featured.release_year }}</span>
+            <span>{{ featured.genre }}</span>
+            <span>{{ featured.language }}</span>
+            <span>★ {{ featured.rating }}</span>
+          </div>
+          <p>{{ featured.description }}</p>
+          <div class="cta-row">
+            <a class="primary-btn" href="{{ url_for('main.watch_movie', movie_id=featured.id) }}">Watch Trailer</a>
+            <a class="secondary-btn" href="{{ url_for('main.movie_detail', movie_id=featured.id) }}">View Details</a>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
+  {% else %}
+    <section class="hero">
+      <div class="container hero-wrap">
+        <div class="hero-content">
+          <span class="eyebrow">CineZone</span>
+          <h1>Your movie catalog is ready</h1>
+          <p>Add licensed titles in the admin area or import an existing catalog to get started.</p>
+          <div class="cta-row">
+            <a class="primary-btn" href="{{ url_for('main.movies') }}">Browse catalog</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  {% endif %}
 
   <section class="genre-strip container">
     {% for genre in genres[:8] %}

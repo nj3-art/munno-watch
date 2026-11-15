@@ -14,7 +14,7 @@ Last updated: 2026-11-15
 
 | Requirement | Status | Evidence / remaining work |
 |---|---|---|
-| Flask app factory and `main` Blueprint | TESTED — PASS | Factory, Blueprint, environment config, request-scoped DB connection, and auth helper extraction pass the regression suite; route paths/methods are explicitly checked. Catalog/schema setup and route groups remain to be separated. |
+| Flask app factory and `main` Blueprint | TESTED — PASS | Factory, Blueprint, environment config, ORM initialization, and auth helpers pass the regression suite; route paths/methods are explicitly checked. Route groups remain to be separated. |
 | Existing Flask app imports and compiles locally | TESTED — PASS | Python compilation succeeds after the architecture change. |
 | Existing homepage and catalog pages render | TESTED — PASS | Test-client GET coverage for homepage, movies, detail, watch, auth, and genre pages. |
 | Existing CineZone dark responsive styling | IN PROGRESS | Current styles and breakpoints exist; browser/device QA and interactive mobile navigation remain. |
@@ -25,21 +25,21 @@ Last updated: 2026-11-15
 | CSRF, safe login redirect, and selected security headers | TESTED — PASS | Regression tests cover CSRF rejection, redirect validation, and headers. |
 | Admin authorization and featured movie selection | IN PROGRESS | Basic route restriction exists; full admin functionality is absent. |
 | Watchlists | IN PROGRESS | Add/remove and profile listing exist; comprehensive ownership and persistence tests remain. |
-| SQLAlchemy and MySQL backend | NOT STARTED | ORM, driver, models, constraints, and migrations remain. MySQL is the target; no provider credentials are configured. |
-| SQLite-to-MySQL data migration | NOT STARTED | Existing ignored SQLite file remains untouched; backup, mapping, and dry run are required. |
+| SQLAlchemy and MySQL backend | IN PROGRESS | SQLAlchemy models, PyMySQL URL handling, Flask-Migrate, and an initial migration are implemented. Offline MySQL DDL generation passes; live MySQL remains unverified because no provider is configured. |
+| SQLite-to-MySQL data migration | IN PROGRESS | Explicit transactional `import-legacy-sqlite` command reads the source read-only, requires an empty migrated destination, preserves IDs/relations, and clears known W3Schools demo playback URLs. Temporary-database regression tests pass; the actual local SQLite source was imported to a disposable temporary SQLite target and left unchanged. A live MySQL import remains pending provider configuration and owner review. |
 | Production WSGI, Gunicorn, Render config, and health endpoint | NOT STARTED | Current compatibility entry point still uses Flask's development server; `/health` is absent. |
 | Cloud storage, authorized uploads, protected playback, and downloads | NOT STARTED | No storage integration or rights-aware delivery exists. |
 | TMDB metadata, live broadcasting, ads/AdSense, analytics, SEO, legal pages | NOT STARTED | No integrations or complete workflows exist. |
-| Local automated tests | IN PROGRESS | 10 focused `unittest` cases pass; broader integration, migration, security, and browser tests remain. |
+| Local automated tests | TESTED — PASS | 14 focused `unittest` cases pass, including route/auth regressions and SQLite import safety. A migration upgrade/check passed on a temporary SQLite target; live MySQL and browser tests remain. |
 | Hosting, database, storage, domain, and HTTPS account configuration | BLOCKED BY EXTERNAL REQUIREMENT | Owner must select/configure services and provide secrets through deployment dashboards. No deployment has occurred. |
 
 ## Phase tracking
 
 | Phase | Status | Notes |
 |---|---|---|
-| Phase 1 — Flask factory and Blueprint restructuring | TESTED — PASS | Existing routes/methods remain registered; 10 local regression tests pass. Clean pushed checkpoint `987787d` was verified before this phase. |
-| Phase 2 — Architecture | IN PROGRESS | Added factory/config/extensions, Blueprint routing, database connection module, and auth module; schema/seed initialization and route groups remain to be extracted. |
-| Phase 3 — Database | NOT STARTED | SQLAlchemy/MySQL and a non-destructive SQLite migration are next after architecture stabilizes. |
+| Phase 1 — Flask factory and Blueprint restructuring | TESTED — PASS | Existing routes/methods remain registered. Local checkpoint `0f0b21d` contains Phase 1 verification and is not pushed. |
+| Phase 2 — Architecture | IN PROGRESS | Factory, config, extensions, database initialization, and auth are separated; route groups still need extraction. |
+| Phase 3 — Database | IN PROGRESS | ORM routes/models, MySQL URL configuration, initial migration, and explicit safe SQLite import are implemented. Temporary SQLite migration/import and MySQL offline DDL checks pass; live provider configuration and actual-data import remain. |
 | Phase 4 — Frontend | IN PROGRESS | Preserve current design; additional pages and mobile QA remain. |
 | Phase 5 — Movie discovery | IN PROGRESS | Basic local discovery exists; pagination, complete filters, and metadata import remain. |
 | Phase 6 — User accounts | IN PROGRESS | Basic auth/watchlist only; extended account functions remain. |
@@ -58,8 +58,8 @@ No hosting, MySQL, object-storage, CDN/video-transcoding, advertising, email, an
 
 ## Latest verified work
 
-- **Phase:** Flask factory and Blueprint restructuring.
-- **Files changed in this verification pass:** `tests/test_app.py`, `PROJECT_AUDIT.md`, `PROJECT_PROGRESS.md`.
-- **Behavior:** added an assertion for all pre-existing route paths and HTTP methods; verified the existing SQLite file remains unchanged.
-- **Tests:** 10 `unittest` cases pass; Python compilation passes; database was inspected read-only (10 movies, 1 user, 0 watchlist entries, 1 setting).
-- **Outstanding:** route/schema extraction remains partial; the MySQL/SQLAlchemy and safe-import work is next.
+- **Phase:** Phase 3 — SQLAlchemy, MySQL configuration, and safe SQLite import (in progress).
+- **Files changed:** `ARCHITECTURE.md`, `DEVELOPMENT_ROADMAP.md`, `PROJECT_AUDIT.md`, `PROJECT_PROGRESS.md`, `backend/app/__init__.py`, `backend/app/auth.py`, `backend/app/config.py`, `backend/app/database.py`, `backend/app/extensions.py`, `backend/app/models.py`, `backend/app/routes.py`, `cinezone.py`, `migrations/README`, `migrations/alembic.ini`, `migrations/env.py`, `migrations/script.py.mako`, `migrations/versions/55b61e8704a3_create_initial_schema.py`, `requirements.txt`, `templates/index.html`, `templates/watch.html`, `tests/test_app.py`, and `tests/test_database.py`.
+- **Implemented:** ORM-backed authentication/catalog/watchlist/admin queries; MySQL-only production URL validation through `DATABASE_URL`; schema migrations; safe explicit SQLite importer; no automatic fictional catalog seeding; no demo playback URL rendered; empty-catalog homepage state.
+- **Tests/checks:** `python3 -m unittest discover -s tests -v` — 15 passed; `python3 -m compileall -q backend cinezone.py tests migrations` passed; `git diff --check` passed; initial migration upgrade and `db check` passed against `/tmp/cinezone-migration-bootstrap.db`; MySQL migration SQL rendered offline without connecting; existing local SQLite pages returned 200 and counts remained 10 movies, 1 user, 0 watchlists, 1 setting; the actual local SQLite database imported into a disposable temp database with matching counts and no source changes.
+- **Outstanding:** live MySQL is untested; no provider or credentials are configured; actual local SQLite import requires an owner-reviewed backup and empty MySQL destination; finer route-module separation remains.

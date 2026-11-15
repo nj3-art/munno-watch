@@ -2,10 +2,11 @@ import os
 import re
 import tempfile
 import unittest
-from unittest.mock import patch
 
 from backend.app import create_app
-from cinezone import app, ensure_db
+from backend.app.extensions import db
+from backend.app.models import Movie, User
+from werkzeug.security import generate_password_hash
 
 
 class CineZoneAppTests(unittest.TestCase):
@@ -13,33 +14,52 @@ class CineZoneAppTests(unittest.TestCase):
     def setUpClass(cls):
         cls.temp_dir = tempfile.TemporaryDirectory()
         cls.database_path = os.path.join(cls.temp_dir.name, "test.db")
-        cls.original_config = {
-            key: app.config[key]
-            for key in ("DATABASE_PATH", "SECRET_KEY", "TESTING", "APP_ENV")
-        }
-        app.config.update(
-            DATABASE_PATH=cls.database_path,
-            SECRET_KEY="test-only-secret",
-            TESTING=True,
-            APP_ENV="testing",
-        )
-        with patch.dict(
-            os.environ,
+        cls.app = create_app(
             {
-                "CINEZONE_ADMIN_PASSWORD": "A-test-admin-password",
-                "CINEZONE_ADMIN_USERNAME": "admin",
-                "CINEZONE_ADMIN_EMAIL": "admin@example.test",
-            },
-        ):
-            ensure_db(cls.database_path)
+                "SQLALCHEMY_DATABASE_URI": f"sqlite:///{cls.database_path}",
+                "SECRET_KEY": "test-only-secret",
+                "TESTING": True,
+                "APP_ENV": "testing",
+            }
+        )
+        with cls.app.app_context():
+            db.create_all()
+            db.session.add_all(
+                [
+                    Movie(
+                        id=1,
+                        title="Regression Test Movie",
+                        release_year=2024,
+                        genre="Action",
+                        description="Test-only record.",
+                        rating=8.0,
+                        popularity=10.0,
+                    ),
+                    User(
+                        username="admin",
+                        email="admin@example.test",
+                        password_hash=generate_password_hash("A-test-admin-password"),
+                        is_admin=True,
+                    ),
+                    User(
+                        username="member",
+                        email="member@example.test",
+                        password_hash=generate_password_hash("A-test-member-password"),
+                        is_admin=False,
+                    ),
+                ]
+            )
+            db.session.commit()
 
     @classmethod
     def tearDownClass(cls):
-        app.config.update(cls.original_config)
+        with cls.app.app_context():
+            db.session.remove()
+            db.engine.dispose()
         cls.temp_dir.cleanup()
 
     def setUp(self):
-        self.client = app.test_client()
+        self.client = self.app.test_client()
 
     def csrf_token(self, path):
         response = self.client.get(path)
@@ -64,22 +84,39 @@ class CineZoneAppTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path).status_code, 200)
 
+    def test_watch_page_does_not_render_unverified_stream_urls(self):
+        with self.app.app_context():
+            movie = db.session.get(Movie, 1)
+            movie.movie_url = "https://www.w3schools.com/html/mov_bbb.mp4"
+            db.session.commit()
+
+        response = self.client.get("/watch/1")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"no verified source is configured", response.data)
+        self.assertNotIn(b"w3schools.com", response.data)
+
     def test_application_factory_registers_main_blueprint(self):
         test_app = create_app(
             {
                 "APP_ENV": "testing",
-                "DATABASE_PATH": self.database_path,
+                "SQLALCHEMY_DATABASE_URI": f"sqlite:///{self.database_path}.factory",
                 "SECRET_KEY": "factory-test-secret",
                 "TESTING": True,
             }
         )
+        with test_app.app_context():
+            db.create_all()
         self.assertIn("main.home", test_app.view_functions)
         self.assertEqual(test_app.test_client().get("/").status_code, 200)
+        with test_app.app_context():
+            self.assertEqual(db.session.query(Movie).count(), 0)
+            db.session.remove()
+            db.engine.dispose()
 
     def test_blueprint_preserves_existing_public_route_paths(self):
         routes = {
             (rule.rule, rule.endpoint.removeprefix("main.")): rule.methods - {"HEAD", "OPTIONS"}
-            for rule in app.url_map.iter_rules()
+            for rule in self.app.url_map.iter_rules()
             if rule.endpoint.startswith("main.")
         }
         expected_routes = {
@@ -146,7 +183,7 @@ class CineZoneAppTests(unittest.TestCase):
 
     def test_admin_route_remains_restricted(self):
         self.assertEqual(self.client.get("/admin").status_code, 302)
-        self.login(username="new_user", password="long-enough-password")
+        self.login(username="member", password="A-test-member-password")
         self.assertEqual(self.client.get("/admin").status_code, 302)
         self.client.post("/logout", data={"csrf_token": self.csrf_token("/login")})
         self.login()

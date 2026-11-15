@@ -14,12 +14,22 @@ if not SECRET_KEY:
     SECRET_KEY = secrets.token_urlsafe(32)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if DATABASE_URL and DATABASE_URL.startswith("mysql://"):
+    DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://", 1)
+if APP_ENV == "production" and not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL must be configured in production.")
+if APP_ENV == "production" and not DATABASE_URL.startswith("mysql+pymysql://"):
+    raise RuntimeError("DATABASE_URL must use the MySQL PyMySQL driver in production.")
+if not DATABASE_URL:
+    DATABASE_URL = f"sqlite:///{PROJECT_ROOT / 'cinezone.db'}"
 
 
 class Config:
     APP_ENV = APP_ENV
     SECRET_KEY = SECRET_KEY
-    DATABASE_PATH = str(PROJECT_ROOT / "cinezone.db")
+    SQLALCHEMY_DATABASE_URI = DATABASE_URL
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
     PORT = int(os.environ.get("PORT", "5000"))
     DEBUG = APP_ENV == "development"
     TESTING = APP_ENV == "testing"

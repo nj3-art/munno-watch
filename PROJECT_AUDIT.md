@@ -26,9 +26,11 @@ The application has begun an incremental refactor into a Flask package. The exis
 │       ├── config.py
 │       ├── database.py
 │       ├── extensions.py
+│       ├── models.py
 │       └── routes.py
 ├── requirements.txt
 ├── .gitignore
+├── migrations/
 ├── templates/
 │   ├── admin.html
 │   ├── base.html
@@ -43,7 +45,8 @@ The application has begun an incremental refactor into a Flask package. The exis
 │   ├── css/style.css
 │   └── js/main.js
 └── tests/
-    └── test_app.py
+    ├── test_app.py
+    └── test_database.py
 ```
 
 The workspace also contains an ignored local `cinezone.db` and generated Python cache files. The SQLite database is not tracked by Git and was not modified during this audit. At inspection it contained 10 sample movies, one pre-existing admin account, an empty watchlist, and one setting.
@@ -52,7 +55,7 @@ The workspace also contains an ignored local `cinezone.db` and generated Python 
 
 ### Backend and routes
 
-`backend/app/routes.py` contains the `main` Blueprint, SQLite schema/seed initialization, shared catalog queries, and route handlers. `backend/app/database.py` owns request-scoped SQLite connections; `backend/app/auth.py` owns current-user lookup, access decorators, watchlist lookup, and redirect-target validation.
+`backend/app/routes.py` contains the `main` Blueprint and page handlers, now backed by SQLAlchemy models. `backend/app/models.py` defines movies, users, settings, and watchlists; `backend/app/database.py` handles development schema initialization; `backend/app/auth.py` owns current-user lookup, access decorators, watchlist lookup, and redirect-target validation. Flask-Migrate/Alembic migrations live under `migrations/`.
 
 - `/`: homepage sections and featured movie.
 - `/movies`: search, genre/year/language/rating/availability filters, and sorting.
@@ -63,18 +66,18 @@ The workspace also contains an ignored local `cinezone.db` and generated Python 
 - `/profile`, `/toggle-watchlist/<movie_id>`: profile and watchlist.
 - `/admin`: featured-movie setting, restricted to admins.
 
-There is no `/health` endpoint. The factory, configuration, CSRF extension, database-connection, and authentication modules are in place. The route module still combines catalog/schema initialization and multiple route groups; further extraction is part of the architecture phase.
+There is no `/health` endpoint. MySQL URLs are read from `DATABASE_URL` and production configuration requires the PyMySQL driver. Development and tests can use SQLite. The route module still combines several route groups; further extraction is part of the architecture phase.
 
 ### Dependencies
 
-`requirements.txt` contains Flask, Flask-WTF, and Werkzeug. Flask-WTF is used for CSRF protection; Werkzeug is used for password hashing. SQLite and `unittest` come from Python's standard library. Gunicorn, SQLAlchemy, Flask-Migrate/Alembic, a MySQL driver, storage SDKs, and rate-limiting dependencies are not present.
+`requirements.txt` contains Flask, Flask-WTF, Werkzeug, Flask-SQLAlchemy, Flask-Migrate, and PyMySQL. SQLite and `unittest` come from Python's standard library. Gunicorn, storage SDKs, and rate-limiting dependencies are not present.
 
 ## Existing functionality and verification
 
 ### Completed and verified locally
 
 - Python syntax compilation succeeded for the app and tests.
-- All 10 tests in `tests/test_app.py` pass after adding route-path and method preservation coverage.
+- Route/authentication regression tests and temporary-database import tests pass.
 - Test coverage verifies app factory registration, existing page rendering, route paths and methods, registration password validation, CSRF rejection, local versus external login redirect handling, admin route restriction, selected security headers, and malformed year/rating filters.
 - A production-mode configuration check verified that debug is disabled, secure cookie flags are enabled, and import fails if `SECRET_KEY` is absent.
 - `.gitignore` excludes environment files and local database files.
@@ -89,14 +92,14 @@ These are local checks only. They do not establish that Render, MySQL, cloud sto
 - Movie pages display basic metadata and related titles. Release date, runtime, cast, multiple genres, and licensed-content records are absent.
 - Registration, login, logout, hashed passwords, admin checks, and watchlists exist. Profile editing, password recovery/change, verification, favourites, and watch history do not.
 - The admin page can change the featured movie only. It cannot manage catalog entries, users, roles, uploads, rights, or site settings.
-- The player has standard browser controls but uses public sample MP4 URLs. There is no secure source resolution, authorization, range-serving implementation, subtitle/quality selection, download, or playback-progress persistence.
+- The watch route remains, but playback is disabled until a verified source is configured. The importer removes known W3Schools demonstration MP4 URLs from imported records. There is no rights model, secure source resolution, range-serving implementation, subtitle/quality selection, download, or playback-progress persistence.
 - CSS includes responsive breakpoints, but there is no interactive mobile navigation or automated cross-device/browser testing.
 
 ## Findings and priority
 
 ### Critical before production
 
-1. **Persistent data:** Local SQLite is not a suitable multi-instance production database. Implement SQLAlchemy models, MySQL connection configuration, migrations, and a tested import strategy before switching providers. Preserve and assess `cinezone.db`; do not delete it.
+1. **Persistent data:** SQLAlchemy models, production MySQL URL handling, migrations, and a non-destructive SQLite import command now exist. No live MySQL provider has been selected or tested. Preserve and assess `cinezone.db`; do not delete it.
 2. **Application serving:** The current entry point uses Flask's development server. Add a WSGI entry point and production server, production configuration, logging, and health check.
 3. **Credentials:** Production must receive a strong secret from environment configuration. A prior local database may still contain the original demo admin account; the recent code change prevents a fixed-password admin from being seeded into a new database, but does not alter the existing local database.
 4. **Media rights and access:** Current demo URLs are not a licensed catalog. Do not publish or enable streaming/downloads until the owner has recorded distribution rights and configured private media storage and delivery.
@@ -104,8 +107,8 @@ These are local checks only. They do not establish that Render, MySQL, cloud sto
 
 ### Important functionality and architecture gaps
 
-- `backend/app/routes.py` is still large and mixes SQLite schema/seed setup, catalog queries, and route groups. The app factory, Blueprint, database connection, and auth modules are verified; further separation remains.
-- SQLite tables do not define foreign keys or user/movie relationships at the database level. There is no schema versioning or migration workflow.
+- `backend/app/routes.py` is still large and combines several route groups. Further separation remains.
+- Migration-defined MySQL schemas include user/movie foreign keys for watchlists. Existing SQLite databases are not altered by migrations or the import command.
 - Discovery lacks pagination and several requested filters. The detail page lacks TMDB integration and extended metadata.
 - No movie CRUD, publication/rights management, upload/download, user administration, or durable audit log.
 - No watch history, favourites, continue-watching, password recovery, or email verification.
@@ -115,8 +118,8 @@ These are local checks only. They do not establish that Render, MySQL, cloud sto
 
 ## Recommended implementation sequence
 
-1. **Finish the architecture phase:** extract database and authentication responsibilities from the large routes module; preserve behavior with regression tests.
-2. **MySQL persistence:** add SQLAlchemy models and relationships for currently functional features first, then add a migration/import path from SQLite. Add only schema needed for near-term features; expand entities with their actual workflows.
+1. **Finish the architecture phase:** extract the remaining route groups from the large routes module; preserve behavior with regression tests.
+2. **MySQL persistence:** configure an owner-selected MySQL provider, test a live migration/import, and add only schema needed for near-term features.
 3. **Production runtime:** add a WSGI entry point, Gunicorn, logging, a health endpoint, and deployment configuration. Configure database URL through secrets/environment variables.
 4. **Discovery and metadata:** add pagination, complete filters, TMDB integration with attribution and terms review, and extend movie details.
 5. **Account and admin workflows:** add profile/watch history/favourites as scoped features; implement admin CRUD and roles with authorization tests.
@@ -129,7 +132,8 @@ Do not claim an external integration is complete until its account configuration
 ## Changes since initial baseline
 
 - Added `backend/app` with an application factory, environment configuration, CSRF extension initialization, and the `main` Blueprint.
-- Extracted request-scoped database connections and authentication helpers into separate modules.
+- Added SQLAlchemy models, Flask-Migrate configuration, MySQL URL handling, and a transactional SQLite import command.
+- Converted authentication and page database access from raw SQLite SQL to SQLAlchemy.
+- Removed automatic fictional movie seeding; watch pages no longer render unverified demonstration media URLs.
 - Kept `cinezone.py` as the existing development/compatibility entry point and preserved the route URLs.
-- Updated template endpoint references for Blueprint routing.
-- Added a factory regression test; all 9 tests pass locally.
+- Added migration, route, and data-import regression coverage; tests run against isolated temporary databases.

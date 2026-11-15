@@ -1,5 +1,5 @@
 from backend.app import create_app
-from backend.app.routes import ensure_db
+from backend.app.database import ensure_db
 
 
 app = create_app()

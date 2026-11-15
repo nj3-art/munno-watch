@@ -2,93 +2,22 @@ from __future__ import annotations
 
 import os
 import re
-import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import List, Optional
 
-from flask import Blueprint, abort, current_app, flash, has_app_context, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
+from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .auth import admin_required, get_current_user, is_in_watchlist, is_safe_redirect_target, user_required
-from .database import get_db
+from .extensions import db
+from .models import Movie, Setting, User, Watchlist
 
 
 main = Blueprint("main", __name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-
-def ensure_db(database_path: Optional[str] = None) -> None:
-    if database_path is None:
-        database_path = (
-            current_app.config["DATABASE_PATH"]
-            if has_app_context()
-            else str(PROJECT_ROOT / "cinezone.db")
-        )
-    db = sqlite3.connect(database_path)
-    db.row_factory = sqlite3.Row
-    db.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS movies (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            release_year INTEGER,
-            genre TEXT,
-            description TEXT,
-            director TEXT,
-            language TEXT,
-            rating REAL,
-            popularity REAL,
-            availability TEXT,
-            poster_url TEXT,
-            backdrop_url TEXT,
-            trailer_url TEXT,
-            movie_url TEXT,
-            keywords TEXT,
-            created_at TEXT,
-            is_featured INTEGER DEFAULT 0
-        );
-
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            is_admin INTEGER DEFAULT 0,
-            created_at TEXT
-        );
-
-        CREATE TABLE IF NOT EXISTS watchlists (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            movie_id INTEGER NOT NULL,
-            created_at TEXT,
-            UNIQUE(user_id, movie_id)
-        );
-
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        );
-        """
-    )
-
-    if db.execute("SELECT COUNT(*) FROM movies").fetchone()[0] == 0:
-        seed_movies(db)
-
-    if db.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
-        seed_admin_user(db)
-
-    if db.execute("SELECT COUNT(*) FROM settings WHERE key = 'featured_movie_id'").fetchone()[0] == 0:
-        featured_id = db.execute("SELECT id FROM movies ORDER BY popularity DESC LIMIT 1").fetchone()
-        if featured_id:
-            db.execute(
-                "INSERT INTO settings (key, value) VALUES ('featured_movie_id', ?)",
-                (str(featured_id["id"]),),
-            )
-
-    db.commit()
-    db.close()
 
 
 def seed_admin_user(db: sqlite3.Connection) -> None:
@@ -316,39 +245,47 @@ def seed_movies(db: sqlite3.Connection) -> None:
 
 
 def get_genres() -> List[str]:
-    rows = get_db().execute("SELECT DISTINCT genre FROM movies ORDER BY genre").fetchall()
-    return [row["genre"] for row in rows]
+    return list(
+        db.session.scalars(
+            select(Movie.genre).where(Movie.genre.is_not(None)).distinct().order_by(Movie.genre)
+        )
+    )
 
 
-def get_featured_movie() -> Optional[sqlite3.Row]:
-    db = get_db()
-    setting_row = db.execute("SELECT value FROM settings WHERE key = 'featured_movie_id'").fetchone()
-    if setting_row:
-        movie_id = setting_row["value"]
-        movie = db.execute("SELECT * FROM movies WHERE id = ?", (movie_id,)).fetchone()
+def get_featured_movie() -> Optional[Movie]:
+    setting = db.session.get(Setting, "featured_movie_id")
+    if setting and setting.value:
+        try:
+            movie_id = int(setting.value)
+        except ValueError:
+            movie_id = None
+        movie = db.session.get(Movie, movie_id) if movie_id is not None else None
         if movie:
             return movie
-    return db.execute("SELECT * FROM movies ORDER BY popularity DESC LIMIT 1").fetchone()
+    return db.session.scalar(select(Movie).order_by(Movie.popularity.desc()).limit(1))
 
 
-def get_movie(movie_id: int) -> Optional[sqlite3.Row]:
-    return get_db().execute("SELECT * FROM movies WHERE id = ?", (movie_id,)).fetchone()
+def get_movie(movie_id: int) -> Optional[Movie]:
+    return db.session.get(Movie, movie_id)
 
 
 @main.route("/")
 def home():
-    db = get_db()
     featured = get_featured_movie()
-    trending = db.execute("SELECT * FROM movies ORDER BY popularity DESC LIMIT 8").fetchall()
-    latest = db.execute("SELECT * FROM movies ORDER BY release_year DESC LIMIT 8").fetchall()
-    popular = db.execute("SELECT * FROM movies ORDER BY popularity DESC LIMIT 8").fetchall()
-    top_rated = db.execute("SELECT * FROM movies ORDER BY rating DESC LIMIT 8").fetchall()
-    recommended = db.execute(
-        "SELECT * FROM movies WHERE genre = ? ORDER BY rating DESC LIMIT 6",
-        (featured["genre"],) if featured else ("Science Fiction",),
-    ).fetchall()
-    recently_added = db.execute("SELECT * FROM movies ORDER BY created_at DESC LIMIT 8").fetchall()
-    editors_picks = db.execute("SELECT * FROM movies WHERE rating >= 8.5 ORDER BY popularity DESC LIMIT 6").fetchall()
+    trending = db.session.scalars(select(Movie).order_by(Movie.popularity.desc()).limit(8)).all()
+    latest = db.session.scalars(select(Movie).order_by(Movie.release_year.desc()).limit(8)).all()
+    popular = db.session.scalars(select(Movie).order_by(Movie.popularity.desc()).limit(8)).all()
+    top_rated = db.session.scalars(select(Movie).order_by(Movie.rating.desc()).limit(8)).all()
+    recommended_query = select(Movie).order_by(Movie.rating.desc()).limit(6)
+    if featured and featured.genre:
+        recommended_query = recommended_query.where(Movie.genre == featured.genre)
+    else:
+        recommended_query = recommended_query.where(False)
+    recommended = db.session.scalars(recommended_query).all()
+    recently_added = db.session.scalars(select(Movie).order_by(Movie.created_at.desc()).limit(8)).all()
+    editors_picks = db.session.scalars(
+        select(Movie).where(Movie.rating >= 8.5).order_by(Movie.popularity.desc()).limit(6)
+    ).all()
     collections = [
         {"name": "Action", "image": "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?auto=format&fit=crop&w=800&q=80"},
         {"name": "Drama", "image": "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=800&q=80"},
@@ -375,9 +312,7 @@ def home():
 
 @main.route("/movies")
 def movies():
-    db = get_db()
-    query = "SELECT * FROM movies WHERE 1=1"
-    params: List[Any] = []
+    query = select(Movie)
     search_term = request.args.get("q", "").strip()
     genre = request.args.get("genre", "").strip()
     release_year = request.args.get("year", "").strip()
@@ -387,13 +322,19 @@ def movies():
     sort = request.args.get("sort", "newest")
 
     if search_term:
-        query += " AND (title LIKE ? OR genre LIKE ? OR description LIKE ? OR keywords LIKE ? OR director LIKE ?)"
         like_term = f"%{search_term}%"
-        params.extend([like_term, like_term, like_term, like_term, like_term])
+        query = query.where(
+            or_(
+                Movie.title.ilike(like_term),
+                Movie.genre.ilike(like_term),
+                Movie.description.ilike(like_term),
+                Movie.keywords.ilike(like_term),
+                Movie.director.ilike(like_term),
+            )
+        )
 
     if genre:
-        query += " AND genre = ?"
-        params.append(genre)
+        query = query.where(Movie.genre == genre)
 
     if release_year:
         try:
@@ -402,12 +343,10 @@ def movies():
             abort(400, description="Release year must be a whole number.")
         if year < 1888 or year > datetime.now(timezone.utc).year + 5:
             abort(400, description="Release year is outside the supported range.")
-        query += " AND release_year = ?"
-        params.append(year)
+        query = query.where(Movie.release_year == year)
 
     if language:
-        query += " AND language = ?"
-        params.append(language)
+        query = query.where(Movie.language == language)
 
     if rating:
         try:
@@ -416,23 +355,21 @@ def movies():
             abort(400, description="Rating must be a number.")
         if not 0 <= minimum_rating <= 10:
             abort(400, description="Rating must be between 0 and 10.")
-        query += " AND rating >= ?"
-        params.append(minimum_rating)
+        query = query.where(Movie.rating >= minimum_rating)
 
     if availability:
-        query += " AND availability = ?"
-        params.append(availability)
+        query = query.where(Movie.availability == availability)
 
     sort_options = {
-        "newest": "release_year DESC, popularity DESC",
-        "oldest": "release_year ASC, popularity DESC",
-        "popular": "popularity DESC, rating DESC",
-        "rated": "rating DESC, popularity DESC",
-        "alpha": "title ASC",
+        "newest": (Movie.release_year.desc(), Movie.popularity.desc()),
+        "oldest": (Movie.release_year.asc(), Movie.popularity.desc()),
+        "popular": (Movie.popularity.desc(), Movie.rating.desc()),
+        "rated": (Movie.rating.desc(), Movie.popularity.desc()),
+        "alpha": (Movie.title.asc(),),
     }
-    query += " ORDER BY " + sort_options.get(sort, sort_options["newest"])
+    query = query.order_by(*sort_options.get(sort, sort_options["newest"]))
 
-    results = db.execute(query, params).fetchall()
+    results = db.session.scalars(query).all()
     return render_template(
         "movies.html",
         movies=results,
@@ -449,12 +386,14 @@ def movie_detail(movie_id: int):
         flash("Movie not found.", "error")
         return redirect(url_for("main.movies"))
 
-    related = get_db().execute(
-        "SELECT * FROM movies WHERE genre = ? AND id != ? ORDER BY rating DESC LIMIT 4",
-        (movie["genre"], movie_id),
-    ).fetchall()
+    related = db.session.scalars(
+        select(Movie)
+        .where(Movie.genre == movie.genre, Movie.id != movie_id)
+        .order_by(Movie.rating.desc())
+        .limit(4)
+    ).all()
     user = get_current_user()
-    in_watchlist = bool(user and is_in_watchlist(user["id"], movie_id))
+    in_watchlist = bool(user and is_in_watchlist(user.id, movie_id))
     return render_template("movie.html", movie=movie, related=related, in_watchlist=in_watchlist)
 
 
@@ -471,19 +410,27 @@ def watch_movie(movie_id: int):
 @user_required
 def toggle_watchlist(movie_id: int):
     user = get_current_user()
-    db = get_db()
     if get_movie(movie_id) is None:
         abort(404)
-    if is_in_watchlist(user["id"], movie_id):
-        db.execute("DELETE FROM watchlists WHERE user_id = ? AND movie_id = ?", (user["id"], movie_id))
+    if is_in_watchlist(user.id, movie_id):
+        entry = db.session.scalar(
+            select(Watchlist).where(
+                Watchlist.user_id == user.id,
+                Watchlist.movie_id == movie_id,
+            )
+        )
+        db.session.delete(entry)
         flash("Removed from your watchlist.", "success")
     else:
-        db.execute(
-            "INSERT INTO watchlists (user_id, movie_id, created_at) VALUES (?, ?, ?)",
-            (user["id"], movie_id, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
+        db.session.add(
+            Watchlist(
+                user_id=user.id,
+                movie_id=movie_id,
+                created_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            )
         )
         flash("Added to your watchlist.", "success")
-    db.commit()
+    db.session.commit()
     return redirect(request.referrer or url_for("main.movie_detail", movie_id=movie_id))
 
 
@@ -510,16 +457,27 @@ def register():
             flash("Password must be between 12 and 128 characters.", "error")
             return render_template("register.html")
 
-        db = get_db()
-        if db.execute("SELECT 1 FROM users WHERE username = ? OR email = ?", (username, email)).fetchone():
+        if db.session.scalar(
+            select(User.id).where(or_(User.username == username, User.email == email))
+        ):
             flash("A user with that username or email already exists.", "error")
             return render_template("register.html")
 
-        db.execute(
-            "INSERT INTO users (username, email, password_hash, is_admin, created_at) VALUES (?, ?, ?, 0, ?)",
-            (username, email, generate_password_hash(password), datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
+        db.session.add(
+            User(
+                username=username,
+                email=email,
+                password_hash=generate_password_hash(password),
+                is_admin=False,
+                created_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            )
         )
-        db.commit()
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash("A user with that username or email already exists.", "error")
+            return render_template("register.html")
         flash("Registration successful. Please log in.", "success")
         return redirect(url_for("main.login"))
 
@@ -531,17 +489,16 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        user = get_db().execute(
-            "SELECT * FROM users WHERE username = ? OR email = ?",
-            (username, username),
-        ).fetchone()
+        user = db.session.scalar(
+            select(User).where(or_(User.username == username, User.email == username))
+        )
 
-        if not user or not check_password_hash(user["password_hash"], password):
+        if not user or not check_password_hash(user.password_hash, password):
             flash("Invalid username or password.", "error")
             return render_template("login.html")
 
         session.clear()
-        session["user_id"] = user["id"]
+        session["user_id"] = user.id
         flash("Welcome back to CineZone.", "success")
         next_url = request.form.get("next") or request.args.get("next")
         if not is_safe_redirect_target(next_url):
@@ -562,33 +519,37 @@ def logout():
 @user_required
 def profile():
     user = get_current_user()
-    watchlist = get_db().execute(
-        """
-        SELECT m.* FROM movies m
-        INNER JOIN watchlists w ON w.movie_id = m.id
-        WHERE w.user_id = ?
-        ORDER BY w.created_at DESC
-        """,
-        (user["id"],),
-    ).fetchall()
+    watchlist = db.session.scalars(
+        select(Movie)
+        .join(Watchlist, Watchlist.movie_id == Movie.id)
+        .where(Watchlist.user_id == user.id)
+        .order_by(Watchlist.created_at.desc())
+    ).all()
     return render_template("profile.html", user=user, watchlist=watchlist)
 
 
 @main.route("/admin", methods=["GET", "POST"])
 @admin_required
 def admin():
-    db = get_db()
     if request.method == "POST":
         movie_id = request.form.get("featured_movie_id")
         if movie_id:
-            db.execute(
-                "INSERT INTO settings (key, value) VALUES ('featured_movie_id', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                (movie_id,),
-            )
-            db.commit()
+            try:
+                selected_movie_id = int(movie_id)
+            except ValueError:
+                abort(400, description="Featured movie ID must be a whole number.")
+            if get_movie(selected_movie_id) is None:
+                abort(400, description="Selected featured movie does not exist.")
+            setting = db.session.get(Setting, "featured_movie_id")
+            if setting is None:
+                setting = Setting(key="featured_movie_id", value=str(selected_movie_id))
+                db.session.add(setting)
+            else:
+                setting.value = str(selected_movie_id)
+            db.session.commit()
             flash("Featured movie updated successfully.", "success")
 
-    movies = db.execute("SELECT * FROM movies ORDER BY title ASC").fetchall()
+    movies = db.session.scalars(select(Movie).order_by(Movie.title.asc())).all()
     current_featured = get_featured_movie()
     return render_template("admin.html", movies=movies, current_featured=current_featured)
 
@@ -598,7 +559,7 @@ def inject_globals():
     user = get_current_user()
     return {
         "current_user": user,
-        "is_admin": bool(user and user["is_admin"] == 1),
+        "is_admin": bool(user and user.is_admin),
         "featured_movie": get_featured_movie(),
     }
 
@@ -616,5 +577,7 @@ def add_security_headers(response):
 
 @main.route("/genre/<string:genre_name>")
 def genre_page(genre_name: str):
-    movies = get_db().execute("SELECT * FROM movies WHERE genre = ? ORDER BY rating DESC", (genre_name,)).fetchall()
+    movies = db.session.scalars(
+        select(Movie).where(Movie.genre == genre_name).order_by(Movie.rating.desc())
+    ).all()
     return render_template("movies.html", movies=movies, genres=get_genres(), current_query=genre_name)
