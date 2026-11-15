@@ -74,9 +74,8 @@ There is no `/health` endpoint. The factory, configuration, CSRF extension, data
 ### Completed and verified locally
 
 - Python syntax compilation succeeded for the app and tests.
-- All 8 tests in `tests/test_app.py` passed.
-- All 9 tests in `tests/test_app.py` passed after the app-factory/Blueprint and auth/database-connection extraction.
-- Test coverage verifies app factory registration, existing page rendering, registration password validation, CSRF rejection, local versus external login redirect handling, admin route restriction, selected security headers, and malformed year/rating filters.
+- All 10 tests in `tests/test_app.py` pass after adding route-path and method preservation coverage.
+- Test coverage verifies app factory registration, existing page rendering, route paths and methods, registration password validation, CSRF rejection, local versus external login redirect handling, admin route restriction, selected security headers, and malformed year/rating filters.
 - A production-mode configuration check verified that debug is disabled, secure cookie flags are enabled, and import fails if `SECRET_KEY` is absent.
 - `.gitignore` excludes environment files and local database files.
 

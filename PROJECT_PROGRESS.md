@@ -14,7 +14,7 @@ Last updated: 2026-11-15
 
 | Requirement | Status | Evidence / remaining work |
 |---|---|---|
-| Flask app factory and `main` Blueprint | TESTED — PASS | Factory, Blueprint, environment config, request-scoped DB connection, and auth helper extraction pass the current regression suite; catalog/schema setup and route groups remain to be separated. |
+| Flask app factory and `main` Blueprint | TESTED — PASS | Factory, Blueprint, environment config, request-scoped DB connection, and auth helper extraction pass the regression suite; route paths/methods are explicitly checked. Catalog/schema setup and route groups remain to be separated. |
 | Existing Flask app imports and compiles locally | TESTED — PASS | Python compilation succeeds after the architecture change. |
 | Existing homepage and catalog pages render | TESTED — PASS | Test-client GET coverage for homepage, movies, detail, watch, auth, and genre pages. |
 | Existing CineZone dark responsive styling | IN PROGRESS | Current styles and breakpoints exist; browser/device QA and interactive mobile navigation remain. |
@@ -30,14 +30,14 @@ Last updated: 2026-11-15
 | Production WSGI, Gunicorn, Render config, and health endpoint | NOT STARTED | Current compatibility entry point still uses Flask's development server; `/health` is absent. |
 | Cloud storage, authorized uploads, protected playback, and downloads | NOT STARTED | No storage integration or rights-aware delivery exists. |
 | TMDB metadata, live broadcasting, ads/AdSense, analytics, SEO, legal pages | NOT STARTED | No integrations or complete workflows exist. |
-| Local automated tests | IN PROGRESS | Focused `unittest` suite exists; broader integration, migration, security, and browser tests remain. |
+| Local automated tests | IN PROGRESS | 10 focused `unittest` cases pass; broader integration, migration, security, and browser tests remain. |
 | Hosting, database, storage, domain, and HTTPS account configuration | BLOCKED BY EXTERNAL REQUIREMENT | Owner must select/configure services and provide secrets through deployment dashboards. No deployment has occurred. |
 
 ## Phase tracking
 
 | Phase | Status | Notes |
 |---|---|---|
-| Phase 1 — Full audit and checkpoint | TESTED — PASS | Baseline audit documented. Clean pushed checkpoint `a99866e` was verified before architecture changes. |
+| Phase 1 — Flask factory and Blueprint restructuring | TESTED — PASS | Existing routes/methods remain registered; 10 local regression tests pass. Clean pushed checkpoint `987787d` was verified before this phase. |
 | Phase 2 — Architecture | IN PROGRESS | Added factory/config/extensions, Blueprint routing, database connection module, and auth module; schema/seed initialization and route groups remain to be extracted. |
 | Phase 3 — Database | NOT STARTED | SQLAlchemy/MySQL and a non-destructive SQLite migration are next after architecture stabilizes. |
 | Phase 4 — Frontend | IN PROGRESS | Preserve current design; additional pages and mobile QA remain. |
@@ -55,3 +55,11 @@ Last updated: 2026-11-15
 ## External configuration boundary
 
 No hosting, MySQL, object-storage, CDN/video-transcoding, advertising, email, analytics, domain, or payment-provider account has been connected. Credentials must be supplied by the owner through provider dashboards or deployment environment settings, never committed to Git. Prices and free-tier limits must be checked against current provider terms before selection or activation.
+
+## Latest verified work
+
+- **Phase:** Flask factory and Blueprint restructuring.
+- **Files changed in this verification pass:** `tests/test_app.py`, `PROJECT_AUDIT.md`, `PROJECT_PROGRESS.md`.
+- **Behavior:** added an assertion for all pre-existing route paths and HTTP methods; verified the existing SQLite file remains unchanged.
+- **Tests:** 10 `unittest` cases pass; Python compilation passes; database was inspected read-only (10 movies, 1 user, 0 watchlist entries, 1 setting).
+- **Outstanding:** route/schema extraction remains partial; the MySQL/SQLAlchemy and safe-import work is next.

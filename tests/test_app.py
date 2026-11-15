@@ -76,6 +76,29 @@ class CineZoneAppTests(unittest.TestCase):
         self.assertIn("main.home", test_app.view_functions)
         self.assertEqual(test_app.test_client().get("/").status_code, 200)
 
+    def test_blueprint_preserves_existing_public_route_paths(self):
+        routes = {
+            (rule.rule, rule.endpoint.removeprefix("main.")): rule.methods - {"HEAD", "OPTIONS"}
+            for rule in app.url_map.iter_rules()
+            if rule.endpoint.startswith("main.")
+        }
+        expected_routes = {
+            ("/", "home"): {"GET"},
+            ("/admin", "admin"): {"GET", "POST"},
+            ("/genre/<string:genre_name>", "genre_page"): {"GET"},
+            ("/login", "login"): {"GET", "POST"},
+            ("/logout", "logout"): {"POST"},
+            ("/movie/<int:movie_id>", "movie_detail"): {"GET"},
+            ("/movies", "movies"): {"GET"},
+            ("/profile", "profile"): {"GET"},
+            ("/register", "register"): {"GET", "POST"},
+            ("/toggle-watchlist/<int:movie_id>", "toggle_watchlist"): {"POST"},
+            ("/watch/<int:movie_id>", "watch_movie"): {"GET"},
+        }
+        for route, methods in expected_routes.items():
+            with self.subTest(route=route):
+                self.assertEqual(routes.get(route), methods)
+
     def test_invalid_filter_values_return_bad_request(self):
         self.assertEqual(self.client.get("/movies?year=not-a-year").status_code, 400)
         self.assertEqual(self.client.get("/movies?rating=11").status_code, 400)
