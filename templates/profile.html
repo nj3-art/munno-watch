@@ -9,7 +9,7 @@
         <span class="eyebrow">Your account</span>
         <h1>{{ user.username }}</h1>
       </div>
-      <a href="{{ url_for('movies') }}" class="secondary-btn">Continue browsing</a>
+      <a href="{{ url_for('main.movies') }}" class="secondary-btn">Continue browsing</a>
     </div>
 
     <div class="profile-grid">
@@ -27,7 +27,7 @@
         {% if watchlist %}
           <div class="watchlist-list">
             {% for movie in watchlist %}
-              <a href="{{ url_for('movie_detail', movie_id=movie.id) }}" class="watchlist-item">
+              <a href="{{ url_for('main.movie_detail', movie_id=movie.id) }}" class="watchlist-item">
                 <img src="{{ movie.poster_url }}" alt="{{ movie.title }} poster" />
                 <div>
                   <strong>{{ movie.title }}</strong>

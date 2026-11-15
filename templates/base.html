@@ -12,36 +12,36 @@
   <body>
     <header class="topbar">
       <nav class="nav container">
-        <a href="{{ url_for('home') }}" class="brand">
+        <a href="{{ url_for('main.home') }}" class="brand">
           <span class="brand-mark">C</span>
           <span>CINEZONE</span>
         </a>
 
         <div class="nav-links">
-          <a href="{{ url_for('home') }}">Home</a>
-          <a href="{{ url_for('movies') }}">Movies</a>
+          <a href="{{ url_for('main.home') }}">Home</a>
+          <a href="{{ url_for('main.movies') }}">Movies</a>
           <a href="#">Genres</a>
-          <a href="{{ url_for('movies', sort='newest') }}">Latest Releases</a>
-          <a href="{{ url_for('movies', sort='popular') }}">Trending</a>
+          <a href="{{ url_for('main.movies', sort='newest') }}">Latest Releases</a>
+          <a href="{{ url_for('main.movies', sort='popular') }}">Trending</a>
         </div>
 
         <div class="nav-actions">
-          <form class="search-compact" action="{{ url_for('movies') }}" method="get">
+          <form class="search-compact" action="{{ url_for('main.movies') }}" method="get">
             <input type="search" name="q" placeholder="Search movies" aria-label="Search movies" />
             <button type="submit">Search</button>
           </form>
           {% if current_user %}
-            <a href="{{ url_for('profile') }}" class="secondary-btn">{{ current_user.username }}</a>
+            <a href="{{ url_for('main.profile') }}" class="secondary-btn">{{ current_user.username }}</a>
             {% if is_admin %}
-              <a href="{{ url_for('admin') }}" class="secondary-btn">Admin</a>
+              <a href="{{ url_for('main.admin') }}" class="secondary-btn">Admin</a>
             {% endif %}
-            <form action="{{ url_for('logout') }}" method="post" class="inline-form">
+            <form action="{{ url_for('main.logout') }}" method="post" class="inline-form">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <button type="submit" class="ghost-btn">Logout</button>
             </form>
           {% else %}
-            <a href="{{ url_for('login') }}" class="ghost-btn">Login</a>
-            <a href="{{ url_for('register') }}" class="primary-btn">Register</a>
+            <a href="{{ url_for('main.login') }}" class="ghost-btn">Login</a>
+            <a href="{{ url_for('main.register') }}" class="primary-btn">Register</a>
           {% endif %}
         </div>
       </nav>
@@ -73,17 +73,17 @@
         <div>
           <h4>Explore</h4>
           <ul>
-            <li><a href="{{ url_for('movies') }}">Movies</a></li>
-            <li><a href="{{ url_for('movies', sort='popular') }}">Trending</a></li>
-            <li><a href="{{ url_for('movies', sort='newest') }}">Latest</a></li>
+            <li><a href="{{ url_for('main.movies') }}">Movies</a></li>
+            <li><a href="{{ url_for('main.movies', sort='popular') }}">Trending</a></li>
+            <li><a href="{{ url_for('main.movies', sort='newest') }}">Latest</a></li>
           </ul>
         </div>
         <div>
           <h4>Account</h4>
           <ul>
-            <li><a href="{{ url_for('profile') }}">Profile</a></li>
-            <li><a href="{{ url_for('login') }}">Login</a></li>
-            <li><a href="{{ url_for('register') }}">Register</a></li>
+            <li><a href="{{ url_for('main.profile') }}">Profile</a></li>
+            <li><a href="{{ url_for('main.login') }}">Login</a></li>
+            <li><a href="{{ url_for('main.register') }}">Register</a></li>
           </ul>
         </div>
       </div>

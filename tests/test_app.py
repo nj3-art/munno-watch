@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from backend.app import create_app
 from cinezone import app, ensure_db
 
 
@@ -62,6 +63,18 @@ class CineZoneAppTests(unittest.TestCase):
         for path in ("/", "/movies", "/movie/1", "/watch/1", "/login", "/register", "/genre/Action"):
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path).status_code, 200)
+
+    def test_application_factory_registers_main_blueprint(self):
+        test_app = create_app(
+            {
+                "APP_ENV": "testing",
+                "DATABASE_PATH": self.database_path,
+                "SECRET_KEY": "factory-test-secret",
+                "TESTING": True,
+            }
+        )
+        self.assertIn("main.home", test_app.view_functions)
+        self.assertEqual(test_app.test_client().get("/").status_code, 200)
 
     def test_invalid_filter_values_return_bad_request(self):
         self.assertEqual(self.client.get("/movies?year=not-a-year").status_code, 400)
