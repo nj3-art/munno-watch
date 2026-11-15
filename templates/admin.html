@@ -101,5 +101,26 @@
         </table>
       </div>
     </div>
+
+    <div class="admin-panel">
+      <h2>Recent administrator activity</h2>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Time (UTC)</th><th>Administrator</th><th>Action</th><th>Record</th></tr></thead>
+          <tbody>
+            {% for entry in audit_logs %}
+              <tr>
+                <td>{{ entry.created_at }}</td>
+                <td>{{ entry.actor.username if entry.actor else 'Account removed' }}</td>
+                <td>{{ entry.action }}</td>
+                <td>{{ entry.entity_type }}{% if entry.entity_id %} #{{ entry.entity_id }}{% endif %}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="4">No administrator activity recorded.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
   </section>
 {% endblock %}

@@ -13,13 +13,14 @@ backend/
     config.py       # environment-based configuration
     database.py     # non-production schema initialization
     extensions.py   # CSRF, SQLAlchemy, Flask-Migrate
-    models.py       # catalog, rights, assets, views, users, watchlists
+    models.py       # catalog, rights, assets, views, users, watchlists, audit log
     routes.py       # current main Blueprint and page/media/admin routes
     storage.py      # validated local and optional S3-compatible storage
   migrations/       # Alembic schema revisions
 cinezone.py         # compatibility and local development entry point
 wsgi.py             # production WSGI export
 Procfile            # Gunicorn runtime command
+README.md           # local setup, tests, and data-safety instructions
 templates/
 static/
 tests/
@@ -27,7 +28,7 @@ tests/
 
 `create_app()` configures the existing root-level `templates/` and `static/` directories, initializes CSRF/SQLAlchemy/Flask-Migrate, and registers the `main` Blueprint. Existing public URLs remain in place.
 
-`DATABASE_URL` selects the database; production requires a `mysql+pymysql://` URL. Local development defaults to the ignored `cinezone.db`. The additive rights/media migration adds separate tables and does not alter legacy movie columns. The local SQLite database was not modified. See `migrations/README` before applying any migration to an existing legacy database.
+`DATABASE_URL` selects the database; production requires a `mysql+pymysql://` URL. Local development defaults to the ignored `cinezone-dev.db`, not the legacy `cinezone.db`. The additive rights/media migration adds separate tables and does not alter legacy movie columns. The legacy SQLite database was not modified. See `migrations/README` before applying any migration to an existing legacy database.
 
 ## Request/data flow
 
@@ -42,7 +43,7 @@ tests/
 ## Responsibility boundaries and gaps
 
 - **Configuration/extensions:** app settings, CSRF, migrations, and ORM extension objects.
-- **Models/database:** entities, Alembic migrations, and safe legacy SQLite import tooling.
+- **Models/database:** entities, admin audit events, Alembic migrations, and safe legacy SQLite import tooling.
 - **Authentication:** user/role lookup, access checks, sessions, and account services.
 - **Routes/Blueprints:** current page, authentication, catalog, and admin endpoints; route-group extraction remains.
 - **Storage/media:** local and optional S3-compatible storage. The S3 adapter is not provider-tested.

@@ -3,13 +3,15 @@ import re
 import tempfile
 import unittest
 import base64
+import subprocess
+import sys
 from datetime import date, timedelta
 from io import BytesIO
 from pathlib import Path
 
 from backend.app import create_app
 from backend.app.extensions import db
-from backend.app.models import Movie, MovieRights, User
+from backend.app.models import AuditLog, Movie, MovieRights, User
 from backend.app.storage import StorageUnavailable, save_upload
 from werkzeug.datastructures import FileStorage
 from werkzeug.security import generate_password_hash
@@ -158,6 +160,25 @@ class CineZoneAppTests(unittest.TestCase):
             db.session.remove()
             db.engine.dispose()
 
+    def test_default_database_configuration_avoids_legacy_file(self):
+        environment = os.environ.copy()
+        environment.pop("DATABASE_URL", None)
+        environment.update({"APP_ENV": "development", "SECRET_KEY": "config-test-secret"})
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from backend.app.config import Config; print(Config.SQLALCHEMY_DATABASE_URI)",
+            ],
+            cwd=Path(__file__).resolve().parents[1],
+            env=environment,
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+        expected = f"sqlite:///{Path(__file__).resolve().parents[1] / 'cinezone-dev.db'}"
+        self.assertEqual(result.stdout.strip(), expected)
+
     def test_blueprint_preserves_existing_public_route_paths(self):
         routes = {
             (rule.rule, rule.endpoint.removeprefix("main.")): rule.methods - {"HEAD", "OPTIONS"}
@@ -184,6 +205,56 @@ class CineZoneAppTests(unittest.TestCase):
     def test_invalid_filter_values_return_bad_request(self):
         self.assertEqual(self.client.get("/movies?year=not-a-year").status_code, 400)
         self.assertEqual(self.client.get("/movies?rating=11").status_code, 400)
+        self.assertEqual(self.client.get("/movies?sort=unrecognized").status_code, 400)
+        self.assertEqual(self.client.get("/movies?page=not-a-number").status_code, 400)
+        self.assertEqual(self.client.get("/movies?page=0").status_code, 400)
+
+    def test_movie_catalog_paginates_and_preserves_filters(self):
+        license_start = date.today() - timedelta(days=1)
+        license_expiry = date.today() + timedelta(days=30)
+        with self.app.app_context():
+            db.session.add_all(
+                [
+                    Movie(
+                        title=f"Pagination Movie {index:02d}",
+                        genre="Pagination",
+                        release_year=2024,
+                        availability="Free",
+                        rating=7.0,
+                        rights=MovieRights(
+                            rights_holder="Test Rights Holder",
+                            license_reference=f"TEST-PAGE-{index:02d}",
+                            territories="Worldwide",
+                            license_start=license_start,
+                            license_expiry=license_expiry,
+                            rights_verified=True,
+                            published=True,
+                        ),
+                    )
+                    for index in range(25)
+                ]
+            )
+            db.session.commit()
+
+        first_page = self.client.get("/movies?genre=Pagination&sort=alpha")
+        self.assertEqual(first_page.status_code, 200)
+        self.assertIn(b"Pagination Movie 00", first_page.data)
+        self.assertNotIn(b"Pagination Movie 24", first_page.data)
+        self.assertIn(b"Page 1 of 2", first_page.data)
+        self.assertIn(b"genre=Pagination", first_page.data)
+        self.assertIn(b"page=2", first_page.data)
+        self.assertIn(b"sort=alpha", first_page.data)
+
+        second_page = self.client.get("/movies?genre=Pagination&sort=alpha&page=2")
+        self.assertEqual(second_page.status_code, 200)
+        self.assertIn(b"Pagination Movie 24", second_page.data)
+        self.assertNotIn(b"Pagination Movie 00", second_page.data)
+        self.assertEqual(self.client.get("/movies?genre=Pagination&page=3").status_code, 404)
+
+        genre_page = self.client.get("/genre/Pagination?page=2")
+        self.assertEqual(genre_page.status_code, 200)
+        self.assertIn(b"Pagination Movie 24", genre_page.data)
+        self.assertNotIn(b"Pagination Movie 00", genre_page.data)
 
     def test_registration_rejects_short_password_and_accepts_valid_input(self):
         token = self.csrf_token("/register")
@@ -320,6 +391,63 @@ class CineZoneAppTests(unittest.TestCase):
             self.assertTrue(movie.rights.rights_verified)
             self.assertFalse(movie.rights.published)
             self.assertEqual(self.client.get(f"/movie/{movie_id}").status_code, 404)
+            audit_entries = db.session.scalars(
+                db.select(AuditLog)
+                .where(AuditLog.entity_type == "movie", AuditLog.entity_id == movie_id)
+                .order_by(AuditLog.id)
+            ).all()
+            self.assertEqual(
+                [entry.action for entry in audit_entries],
+                ["movie.created", "movie.updated", "movie.unpublished"],
+            )
+            self.assertTrue(all(entry.actor_user_id is not None for entry in audit_entries))
+            self.assertIn(b"Recent administrator activity", self.client.get("/admin").data)
+
+    def test_featured_movie_change_is_audited(self):
+        self.login()
+        token = self.csrf_token("/admin")
+        response = self.client.post(
+            "/admin",
+            data={"csrf_token": token, "featured_movie_id": "1"},
+        )
+        self.assertEqual(response.status_code, 200)
+        with self.app.app_context():
+            entry = db.session.scalar(
+                db.select(AuditLog)
+                .where(
+                    AuditLog.action == "movie.featured",
+                    AuditLog.entity_id == 1,
+                )
+                .order_by(AuditLog.id.desc())
+            )
+            self.assertIsNotNone(entry)
+            self.assertIsNotNone(entry.actor_user_id)
+
+    def test_create_admin_command_records_audit_event_without_password(self):
+        with self.app.app_context():
+            result = self.app.test_cli_runner().invoke(
+                args=[
+                    "create-admin",
+                    "--username",
+                    "setup_admin",
+                    "--email",
+                    "setup-admin@example.test",
+                ],
+                input="A-very-secure-password\nA-very-secure-password\n",
+            )
+        self.assertEqual(result.exit_code, 0, result.output)
+        with self.app.app_context():
+            administrator = db.session.scalar(
+                db.select(User).where(User.username == "setup_admin")
+            )
+            entry = db.session.scalar(
+                db.select(AuditLog).where(
+                    AuditLog.action == "administrator.created",
+                    AuditLog.entity_id == administrator.id,
+                )
+            )
+            self.assertIsNotNone(entry)
+            self.assertEqual(entry.actor_user_id, administrator.id)
 
     def test_admin_cannot_publish_without_documented_verified_rights(self):
         self.login()

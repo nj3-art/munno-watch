@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash
 
 from .extensions import db
-from .models import User
+from .models import AuditLog, User
 
 
 @click.command("create-admin")
@@ -31,16 +31,25 @@ def create_admin_command(username: str, email: str) -> None:
     password = click.prompt("Password", hide_input=True, confirmation_prompt=True)
     if len(password) < 12 or len(password) > 128:
         raise click.ClickException("Password must be between 12 and 128 characters.")
-    db.session.add(
-        User(
-            username=username,
-            email=email,
-            password_hash=generate_password_hash(password),
-            is_admin=True,
-            created_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
-        )
+    administrator = User(
+        username=username,
+        email=email,
+        password_hash=generate_password_hash(password),
+        is_admin=True,
+        created_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
     )
+    db.session.add(administrator)
     try:
+        db.session.flush()
+        db.session.add(
+            AuditLog(
+                actor_user_id=administrator.id,
+                action="administrator.created",
+                entity_type="user",
+                entity_id=administrator.id,
+                created_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            )
+        )
         db.session.commit()
     except IntegrityError as error:
         db.session.rollback()

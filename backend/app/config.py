@@ -22,7 +22,7 @@ if APP_ENV == "production" and not DATABASE_URL:
 if APP_ENV == "production" and not DATABASE_URL.startswith("mysql+pymysql://"):
     raise RuntimeError("DATABASE_URL must use the MySQL PyMySQL driver in production.")
 if not DATABASE_URL:
-    DATABASE_URL = f"sqlite:///{PROJECT_ROOT / 'cinezone.db'}"
+    DATABASE_URL = f"sqlite:///{PROJECT_ROOT / 'cinezone-dev.db'}"
 
 
 class Config:

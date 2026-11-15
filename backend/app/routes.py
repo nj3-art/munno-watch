@@ -25,6 +25,7 @@ from werkzeug.utils import secure_filename
 from .auth import admin_required, get_current_user, is_in_watchlist, is_safe_redirect_target, user_required
 from .extensions import db
 from .models import (
+    AuditLog,
     Movie,
     MovieAsset,
     MovieDetails,
@@ -46,6 +47,7 @@ from .storage import (
 
 
 main = Blueprint("main", __name__)
+MOVIE_PAGE_SIZE = 24
 
 
 def _published_movies_query():
@@ -95,6 +97,21 @@ def _public_movie(movie_id: int) -> Optional[Movie]:
     return db.session.scalar(_published_movies_query().where(Movie.id == movie_id))
 
 
+def _record_admin_action(action: str, entity_type: str, entity_id: Optional[int]) -> None:
+    actor = get_current_user()
+    if not actor or not actor.is_admin:
+        abort(403)
+    db.session.add(
+        AuditLog(
+            actor_user_id=actor.id,
+            action=action,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            created_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+        )
+    )
+
+
 def get_genres() -> List[str]:
     return list(
         db.session.scalars(
@@ -126,6 +143,17 @@ def get_featured_movie() -> Optional[Movie]:
 
 def get_movie(movie_id: int) -> Optional[Movie]:
     return db.session.get(Movie, movie_id)
+
+
+def _requested_page() -> int:
+    page_value = request.args.get("page", "1")
+    try:
+        page = int(page_value)
+    except ValueError as error:
+        raise ValueError("Page must be a whole number.") from error
+    if page < 1 or page > 2_147_483_647:
+        raise ValueError("Page must be a positive whole number.")
+    return page
 
 
 @main.route("/")
@@ -241,6 +269,8 @@ def movies():
         "rated": (Movie.rating.desc(), Movie.release_year.desc()),
         "alpha": (Movie.title.asc(),),
     }
+    if sort not in sort_options and sort != "popular":
+        abort(400, description="Choose a valid sort order.")
     if sort == "popular":
         view_counts = (
             select(MovieView.movie_id, func.count(MovieView.id).label("view_count"))
@@ -253,10 +283,18 @@ def movies():
     else:
         query = query.order_by(*sort_options.get(sort, sort_options["newest"]))
 
-    results = db.session.scalars(query).all()
+    try:
+        page = _requested_page()
+    except ValueError as error:
+        abort(400, description=str(error))
+    pagination = db.paginate(query, page=page, per_page=MOVIE_PAGE_SIZE)
     return render_template(
         "movies.html",
-        movies=results,
+        movies=pagination.items,
+        pagination=pagination,
+        pagination_args={
+            key: value for key, value in request.args.items() if key != "page"
+        },
         genres=get_genres(),
         current_query=search_term,
         current_sort=sort,
@@ -718,6 +756,12 @@ def _save_admin_movie(movie: Optional[Movie]):
             setattr(asset, mime_field, stored.mime_type)
             if kind == "video":
                 asset.video_size = stored.size
+        db.session.flush()
+        _record_admin_action(
+            "movie.created" if created else "movie.updated",
+            "movie",
+            movie.id,
+        )
         db.session.commit()
     except (UploadValidationError, StorageUnavailable) as error:
         db.session.rollback()
@@ -756,6 +800,7 @@ def admin():
                 db.session.add(setting)
             else:
                 setting.value = str(selected_movie_id)
+            _record_admin_action("movie.featured", "movie", selected_movie_id)
             db.session.commit()
             flash("Featured movie updated successfully.", "success")
 
@@ -780,6 +825,9 @@ def admin():
         _published_movies_query().order_by(Movie.title.asc())
     ).all()
     users = db.session.scalars(select(User).order_by(User.created_at.desc()).limit(25)).all()
+    audit_logs = db.session.scalars(
+        select(AuditLog).order_by(AuditLog.id.desc()).limit(25)
+    ).all()
     return render_template(
         "admin.html",
         movies=movies,
@@ -788,6 +836,7 @@ def admin():
         search=search,
         status_filter=status_filter,
         users=users,
+        audit_logs=audit_logs,
         upload_status={
             movie.id: bool(movie.assets and movie.assets.video_key) for movie in movies
         },
@@ -821,7 +870,8 @@ def unpublish_admin_movie(movie_id: int):
         abort(404)
     if movie.rights:
         movie.rights.published = False
-        db.session.commit()
+    _record_admin_action("movie.unpublished", "movie", movie.id)
+    db.session.commit()
     flash("Movie is unpublished.", "success")
     return redirect(url_for("main.admin"))
 
@@ -860,9 +910,25 @@ def health():
 
 @main.route("/genre/<string:genre_name>")
 def genre_page(genre_name: str):
-    movies = db.session.scalars(
+    try:
+        page = _requested_page()
+    except ValueError as error:
+        abort(400, description=str(error))
+    query = (
         _published_movies_query()
         .where(Movie.genre == genre_name)
         .order_by(Movie.rating.desc())
-    ).all()
-    return render_template("movies.html", movies=movies, genres=get_genres(), current_query=genre_name)
+    )
+    pagination = db.paginate(query, page=page, per_page=MOVIE_PAGE_SIZE)
+    return render_template(
+        "movies.html",
+        movies=pagination.items,
+        pagination=pagination,
+        pagination_args={
+            key: value for key, value in request.args.items() if key != "page"
+        },
+        genres=get_genres(),
+        current_query=genre_name,
+        current_sort="rated",
+        genre_name=genre_name,
+    )

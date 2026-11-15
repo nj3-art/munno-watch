@@ -436,6 +436,15 @@ button {
   background: rgba(255,255,255,0.02);
 }
 
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 70px;
+  color: var(--muted);
+}
+
 .movie-hero {
   padding: 55px 0 20px;
   background-size: cover;

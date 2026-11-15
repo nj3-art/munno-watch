@@ -21,6 +21,6 @@ Example (replace the database path with the verified absolute path):
     APP_ENV=development DATABASE_URL=sqlite:////absolute/path/cinezone.db flask --app backend.app:create_app db current
     APP_ENV=development DATABASE_URL=sqlite:////absolute/path/cinezone.db flask --app backend.app:create_app db check
 
-Do not stamp an unverified schema, run these commands against the only copy, or downgrade a production database. The additive revision creates the rights, asset, details, and view tables only; if development schema initialization already created them, it skips those existing tables.
+Do not stamp an unverified schema, run these commands against the only copy, or downgrade a production database. The additive revisions create the rights, asset, details, view, and administrator audit tables; if development schema initialization already created them, the revisions skip those existing tables.
 
 The legacy SQLite-to-MySQL importer is separate: create and migrate an empty destination database, review a verified source backup, then run `flask --app backend.app:create_app import-legacy-sqlite /path/to/backup.db`. The importer reads the source read-only and refuses a non-empty destination.

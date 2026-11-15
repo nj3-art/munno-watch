@@ -31,6 +31,7 @@ This roadmap is based on the verified current implementation in `PROJECT_AUDIT.m
 - [x] Model current users, movies, settings, and watchlists with foreign keys and uniqueness constraints.
 - [x] Configure production MySQL URLs through `DATABASE_URL`; retain SQLite for local development/tests.
 - [x] Add an initial migration and an explicit, transactional SQLite import path for an empty target.
+- [x] Use a separate `cinezone-dev.db` by default so local schema initialization does not alter the legacy database.
 - [ ] Configure and verify a live MySQL provider; do not activate or pay for a service without approval.
 - [ ] Test import against a backup of the actual local database after owner review; never alter or delete the source.
 - Expand the schema only alongside functional features (roles, rights, watch history, etc.).
@@ -50,7 +51,9 @@ This roadmap is based on the verified current implementation in `PROJECT_AUDIT.m
 
 **Status: IN PROGRESS**
 
-- Add pagination and complete validated search, filtering, and sorting.
+- [x] Add server-side pagination to movie and genre listings, preserving query filters.
+- [x] Reject invalid page and sort values; keep rights-aware query results.
+- [ ] Complete validated search/filter controls, suggestions, recent/popularity filters, and admin-managed genres.
 - Add related collections and movie details from persistent database records.
 - Research the current TMDB API terms/attribution before adding a review-before-import workflow.
 - Do not infer distribution rights from metadata or posters.
@@ -70,7 +73,8 @@ This roadmap is based on the verified current implementation in `PROJECT_AUDIT.m
 
 - [x] Add protected movie create/edit/unpublish workflows and publication/search filters.
 - [x] Add rights metadata, verified-rights attestation, upload status, and a recent user list.
-- [ ] Add genre CRUD, role/permission management, user management, and audit logging.
+- [x] Record and display administrator creation, movie create/update/unpublish, and featured-movie changes.
+- [ ] Add genre CRUD, role/permission management, user management, and complete audit coverage/retention.
 - [ ] Add dashboards only from real stored data.
 
 ## Phase 8 — Rights and media delivery
@@ -113,14 +117,14 @@ The S3 adapter is not provider-tested; local tests use a tiny synthetic file-sig
 - [x] Add route, authorization, publication, upload, range, download, S3-missing-configuration, health, and legacy-import tests.
 - [x] Verify additive migrations on disposable SQLite and generate offline MySQL DDL.
 - [ ] Add browser/mobile tests, real-media/provider integration tests, and production-like deployment checks.
-- Current local result: 26 unittest cases pass; this does not verify external services.
+- Current local result: 30 unittest cases pass; this does not verify external services.
 
 ## Phase 12 — SEO and performance
 
 **Status: NOT STARTED**
 
 - Add unique metadata, canonical URLs, sitemap, robots rules, and truthful structured data.
-- Use database pagination, indexes, lazy-loaded/optimized images, caching, and measured asset optimization.
+- Add indexes, lazy-loaded/optimized images, caching, and measured asset optimization.
 - Measure before introducing additional infrastructure.
 
 ## Phase 13 — Deployment

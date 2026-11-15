@@ -104,6 +104,23 @@ class MovieView(db.Model):
     viewed_at = db.Column(String(32), nullable=False)
 
 
+class AuditLog(db.Model):
+    __tablename__ = "audit_logs"
+
+    id = db.Column(Integer, primary_key=True)
+    actor_user_id = db.Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    action = db.Column(String(64), nullable=False)
+    entity_type = db.Column(String(64), nullable=False)
+    entity_id = db.Column(Integer)
+    created_at = db.Column(String(32), nullable=False)
+    actor = db.relationship(
+        "User",
+        backref=db.backref("audit_logs", passive_deletes=True),
+    )
+
+
 class User(db.Model):
     __tablename__ = "users"
 
